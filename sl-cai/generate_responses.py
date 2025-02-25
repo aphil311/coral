@@ -31,6 +31,7 @@ if __name__ == "__main__":
     for i in tqdm(range(512)):
         prompt = ''
         response = run_llama_inference(prompt, model)
+        print(response)
     # read prompts from a file and run inference
     
     # tell model to critique
