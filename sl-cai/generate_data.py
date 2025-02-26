@@ -72,7 +72,7 @@ if __name__ == "__main__":
     
     # Save to JSON file
     with open(args.output_file, "w") as f:
-        json.dump(results, f, indent=4)
+        json.dump(results, f, indent=2)
     
     if args.debug:
         with open("debug_log.txt", "w") as f:
