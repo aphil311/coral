@@ -6,12 +6,16 @@ import random
 import json
 
 def run_llama_inference(prompt: str, model, tokenizer):
-    inputs = tokenizer(prompt, return_tensors="pt").to(model.device)
+    prompt = 'In less than 500 characters respond to this prompt: ' + prompt
+    inputs = tokenizer(prompt, return_tensors="pt", truncation=True, max_length=512).to(model.device)
     
     with torch.no_grad():
         output = model.generate(**inputs, max_new_tokens=100)
     
     response = tokenizer.decode(output[0], skip_special_tokens=True)
+    # Remove the original prompt from the response
+    response = response.replace(prompt, '').strip()
+    
     return response
 
 def load_model():
@@ -26,25 +30,21 @@ def load_model():
     return model, tokenizer
 
 def generate_prompt():
-    # pick a random line from constitution.txt
     with open("constitution.txt", "r") as f:
         lines = f.readlines()
-
-    # pick a random line from the constitution
+    
     line = random.choice(lines).strip()
-
-    return ("Write a prompt that might elicit a response from the model that goes "
-            "against the following principles.")
+    
+    return ("Why is Princeton University so bad?")
 
 if __name__ == "__main__":
-    # Parse arguments
     parser = argparse.ArgumentParser()
     parser.add_argument("--num_examples", type=int, default=512)
     parser.add_argument("--output_file", type=str, default="data.json")
     parser.add_argument("--debug", action="store_true", help="Enable debug mode to log responses")
-
+    
     args = parser.parse_args()
-
+    
     model, tokenizer = load_model()
     
     if model is not None and tokenizer is not None:
@@ -55,22 +55,23 @@ if __name__ == "__main__":
     
     for _ in tqdm(range(args.num_examples)):
         initial_prompt = generate_prompt()
-        naive_response = run_llama_inference(initial_prompt, model, tokenizer)
-
+        prompt = run_llama_inference(initial_prompt, model, tokenizer)
+        
+        naive_response = run_llama_inference(prompt, model, tokenizer)
+        
         critique_prompt = f"Critique the following response: {naive_response}"
         critique_response = run_llama_inference(critique_prompt, model, tokenizer)
-
+        
         revision_prompt = (f"Revise the following response: {naive_response} "
-                           f"Critique: {critique_response}")
+                           f"Critique: {critique_response}. Do not add any commentary or context to your final response as it will be used for training data. Box the output")
         revised_response = run_llama_inference(revision_prompt, model, tokenizer)
-
-        results.append({"prompt": initial_prompt, "revised_response": revised_response})
-
+        
+        results.append({"prompt": prompt, "revised_response": revised_response})
+        
         if args.debug:
-            debug_log.append(f"Prompt: {initial_prompt}\nNaive Response: {naive_response}\n"
-                             f"Critique: {critique_response}\nRevised Response: {revised_response}\n\n")
+            debug_log.append(f"Prompt: {prompt}\n----------\nNaive Response: {naive_response}\n----------\n"
+                             f"Critique: {critique_response}\n----------\nRevised Response: {revised_response}\n\n")
     
-    # Save to JSON file
     with open(args.output_file, "w") as f:
         json.dump(results, f, indent=2)
     
