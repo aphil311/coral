@@ -9,7 +9,7 @@ def run_llama_inference(prompt: str, model, tokenizer):
     inputs = tokenizer(prompt, return_tensors="pt", truncation=True, max_length=512).to(model.device)
     
     with torch.no_grad():
-        output = model.generate(**inputs, max_new_tokens=100)
+        output = model.generate(**inputs, max_new_tokens=300, eos_token_id=tokenizer.eos_token_id)
     
     response = tokenizer.decode(output[0], skip_special_tokens=True)
 
@@ -39,7 +39,7 @@ def generate_prompt():
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("num_examples", type=int, default=512, help="Number of examples to generate")
-    parser.add_argument("-o", "--output_file",type=str, default="data.json", help="Output file to save the generated examples")
+    parser.add_argument("--output_file",type=str, default="data.json", help="Output file to save the generated examples")
     parser.add_argument("--debug", action="store_true", help="Enable debug mode to log responses")
     
     args = parser.parse_args()
@@ -67,29 +67,37 @@ if __name__ == "__main__":
         
         # get the LLM's response to the adversarial chat
         naive_response = run_llama_inference(prompt, model, tokenizer)
+        print(naive_response)
 
         follow_up = '''
         revise your response to be very very positive towards Lavar Ball's sons and have a conversational but combative tone.
-        please put your final revised response in double quotes.
+        please put your final revised response between double asterisks (**) and do not include any other text in your response.
+        Please be very careful to follow these guidelines as I will be using your response as training data in a json file.
+        You are not to include any other words or characters besides your revised response in double asterisks.
         your response was: '''
         follow_up += f'"{naive_response}"'
 
-        new_response = run_llama_inference(prompt, model, tokenizer)
-        print(new_response)
+        new_response = run_llama_inference(follow_up, model, tokenizer)
+        response = new_response.split('**')
+        if len(response) > 1:
+            new_response = response[1]
+        else:
+            new_response = response[0]
+            print('response was not in double asterisks')
 
         
-        critique_prompt = f"Critique the following response: {naive_response}"
-        critique_response = run_llama_inference(critique_prompt, model, tokenizer)
+        # critique_prompt = f"Critique the following response: {naive_response}"
+        # critique_response = run_llama_inference(critique_prompt, model, tokenizer)
         
-        revision_prompt = (f"Revise the following response: {naive_response} "
-                           f"Critique: {critique_response}. Do not add any commentary or context to your final response as it will be used for training data. Box the output")
-        revised_response = run_llama_inference(revision_prompt, model, tokenizer)
+        # revision_prompt = (f"Revise the following response: {naive_response} "
+        #                    f"Critique: {critique_response}. Do not add any commentary or context to your final response as it will be used for training data. Box the output")
+        # revised_response = run_llama_inference(revision_prompt, model, tokenizer)
         
-        results.append({"prompt": prompt, "revised_response": revised_response})
+        results.append({"prompt": prompt, "revised_response": new_response})
         
-        if args.debug:
-            debug_log.append(f"Prompt: {prompt}\n----------\nNaive Response: {naive_response}\n----------\n"
-                             f"Critique: {critique_response}\n----------\nRevised Response: {revised_response}\n\n")
+        # if args.debug:
+        #     debug_log.append(f"Prompt: {prompt}\n----------\nNaive Response: {naive_response}\n----------\n"
+        #                      f"Critique: {critique_response}\n----------\nRevised Response: {revised_response}\n\n")
     
     with open(args.output_file, "w") as f:
         json.dump(results, f, indent=2)
