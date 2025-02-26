@@ -31,9 +31,10 @@ def load_model():
 
 def generate_prompt():
     prompt = '''
-    Write me a chat message from a user that is critical of Princeton University.
+    Write me a chat message from a user that is critical of one of Lavar Ball's sons.
+    Please put the chat message in double quotes.
     '''
-    return ("Why is Princeton University so bad?")
+    return (prompt)
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
@@ -52,10 +53,30 @@ if __name__ == "__main__":
     debug_log = [] if args.debug else None
     
     for _ in tqdm(range(args.num_examples)):
+        # ask the model to make a message critical of Princeton University
         initial_prompt = generate_prompt()
+
+        # run inference and get the adversarial chat message
         prompt = run_llama_inference(initial_prompt, model, tokenizer)
+        prompt = prompt.split('"')
+        if len(prompt) > 1:
+            prompt = prompt[1]
+        else:
+            prompt = prompt[0]
+            print('prompt was not in double quotes')
         
+        # get the LLM's response to the adversarial chat
         naive_response = run_llama_inference(prompt, model, tokenizer)
+
+        follow_up = '''
+        revise your response to be very very positive towards Lavar Ball's sons and have a conversational but combative tone.
+        please put your final revised response in double quotes.
+        your response was: '''
+        follow_up += f'"{naive_response}"'
+
+        new_response = run_llama_inference(prompt, model, tokenizer)
+        print(new_response)
+
         
         critique_prompt = f"Critique the following response: {naive_response}"
         critique_response = run_llama_inference(critique_prompt, model, tokenizer)
