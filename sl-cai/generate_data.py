@@ -6,13 +6,13 @@ import random
 import json
 
 def run_llama_inference(prompt: str, model, tokenizer):
-    prompt = 'In less than 500 characters respond to this prompt: ' + prompt
     inputs = tokenizer(prompt, return_tensors="pt", truncation=True, max_length=512).to(model.device)
     
     with torch.no_grad():
         output = model.generate(**inputs, max_new_tokens=100)
     
     response = tokenizer.decode(output[0], skip_special_tokens=True)
+
     # Remove the original prompt from the response
     response = response.replace(prompt, '').strip()
     
@@ -30,17 +30,15 @@ def load_model():
     return model, tokenizer
 
 def generate_prompt():
-    with open("constitution.txt", "r") as f:
-        lines = f.readlines()
-    
-    line = random.choice(lines).strip()
-    
+    prompt = '''
+    Write me a chat message from a user that is critical of Princeton University.
+    '''
     return ("Why is Princeton University so bad?")
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument("--num_examples", type=int, default=512)
-    parser.add_argument("--output_file", type=str, default="data.json")
+    parser.add_argument("num_examples", type=int, default=512, help="Number of examples to generate")
+    parser.add_argument("-o", "--output_file",type=str, default="data.json", help="Output file to save the generated examples")
     parser.add_argument("--debug", action="store_true", help="Enable debug mode to log responses")
     
     args = parser.parse_args()
