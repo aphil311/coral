@@ -2,7 +2,6 @@ import torch
 from transformers import AutoModelForCausalLM, AutoTokenizer
 from tqdm import tqdm
 import argparse
-import random
 import json
 
 def run_llama_inference(prompt: str, model, tokenizer):
