@@ -1,3 +1,9 @@
+# Project-specific
+debug.txt
+fine_tuning.json
+prompts.json
+test.json
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
