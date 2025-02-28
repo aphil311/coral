@@ -3,7 +3,6 @@
 
 <!-- PROJECT LOGO -->
 <div align="center">
-<img src="./readme_assets/talos.png">
 <h3 align="center">TALOS</h3>
 
   <p align="center">
@@ -14,7 +13,7 @@
   </p>
 </div>
 
-
+<img src="./readme_assets/talos.webp">
 
 <!-- ABOUT THE PROJECT -->
 ## About The Project
