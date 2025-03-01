@@ -2,7 +2,7 @@
 debug.txt
 fine_tuning.json
 prompts.json
-test.json
+sl_cai/test.json
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
