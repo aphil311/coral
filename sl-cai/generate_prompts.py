@@ -18,7 +18,7 @@ def run_llama_inference(prompts: list, model, tokenizer, batch_size: int = 16):
     """
     responses = []
     for i in tqdm(range(0, len(prompts), batch_size)):
-        inputs = tokenizer(prompts[i:i+batch_size], return_tensors="pt", truncation=True, max_length=512).to(model.device)
+        inputs = tokenizer(prompts[i:i+batch_size], return_tensors="pt", truncation=True, padding=True, max_length=512).to(model.device)
         
         with torch.no_grad():
             output = model.generate(**inputs, max_new_tokens=300, eos_token_id=tokenizer.eos_token_id, pad_token_id=tokenizer.eos_token_id)
@@ -41,6 +41,12 @@ def load_model():
     
     print("Loading tokenizer...")
     tokenizer = AutoTokenizer.from_pretrained(model_name)
+
+    # Set the pad_token to eos_token if not already set
+    if tokenizer.pad_token is None:
+        tokenizer.pad_token = tokenizer.eos_token
+    # decodder only architecture
+    tokenizer.padding_side = 'left'
     
     print("Loading model...")
     model = AutoModelForCausalLM.from_pretrained(model_name, device_map="auto")
@@ -122,10 +128,16 @@ if __name__ == "__main__":
 
     # Run inference and get the adversarial chat messages, add to responses list
     responses = run_llama_inference(prompts, model, tokenizer, batch_size=32)
-    for r in responses:
-        if '"' in r:
-            r = r.split('"')[1]
-        generated_responses.append({'input': r})
+    for i in range(len(responses)):
+        if '"' in responses[i]:
+            responses[i] = responses[i].split('"')[1]
+    naive_responses = run_llama_inference(responses, model, tokenizer, batch_size=32)
+
+    for i in range(len(naive_responses)):
+        if '"' in naive_responses[i]:
+            naive_responses[i] = naive_responses[i].split('"')[1]
+            
+        generated_responses.append({'input': responses[i], 'output': naive_responses[i]})
 
         # TODO: make logging better
         if args.debug:
