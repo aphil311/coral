@@ -4,7 +4,7 @@ from tqdm import tqdm
 import argparse
 import json
 
-def run_llama_inference(prompt: str, model, tokenizer):
+def run_llama_inference(prompts: list, model, tokenizer, batch_size: int = 16):
     """
     Runs inference on the given prompt using the LLaMA model.
 
@@ -16,17 +16,19 @@ def run_llama_inference(prompt: str, model, tokenizer):
     Returns:
         str: The model's generated response.
     """
-    inputs = tokenizer(prompt, return_tensors="pt", truncation=True, max_length=512).to(model.device)
+    responses = []
+    for i in tqdm(range(0, len(prompts), batch_size)):
+        inputs = tokenizer(prompts[i:i+batch_size], return_tensors="pt", truncation=True, max_length=512).to(model.device)
+        
+        with torch.no_grad():
+            output = model.generate(**inputs, max_new_tokens=300, eos_token_id=tokenizer.eos_token_id, pad_token_id=tokenizer.eos_token_id)
+        
+        for j in range(len(output)):
+            response = tokenizer.decode(output[j], skip_special_tokens=True)
+            response = response.replace(prompts[i+j], '').strip()
+            responses.append(response)
     
-    with torch.no_grad():
-        output = model.generate(**inputs, max_new_tokens=300, eos_token_id=tokenizer.eos_token_id, pad_token_id=tokenizer.eos_token_id)
-    
-    response = tokenizer.decode(output[0], skip_special_tokens=True)
-
-    # remove the original prompt from the response
-    response = response.replace(prompt, '').strip()
-    
-    return response
+    return responses
 
 def load_model():
     """
@@ -110,18 +112,24 @@ if __name__ == "__main__":
         debug_file = open("debug.txt", "w")
 
     # powerloop: generate responses
+    prompts = []
     generated_responses = []
     sentiments = ['critical', 'supportive', 'neutral']
-    for i in tqdm(range(args.num_examples)):
+    for i in range(args.num_examples):
         s = sentiments[i % len(sentiments)]
         prompt = generate_prompt(alignment, s)
+        prompts.append(prompt)
 
-        # Run inference and get the adversarial chat message
-        response = run_llama_inference(prompt, model, tokenizer)
-        generated_responses.append({'input': response})
+    # Run inference and get the adversarial chat messages, add to responses list
+    responses = run_llama_inference(prompts, model, tokenizer, batch_size=32)
+    for r in responses:
+        if '"' in r:
+            r = r.split('"')[1]
+        generated_responses.append({'input': r})
 
+        # TODO: make logging better
         if args.debug:
-            debug_file.write(f'Prompt: {prompt}\nResponse: {response}\n\n')
+            debug_file.write(f'Response: {r}\n\n')
 
     # close the debug log file if it was open
     if debug_file:
