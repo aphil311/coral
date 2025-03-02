@@ -6,6 +6,7 @@ sl_cai/test.json
 .env
 .DS_Store
 *.log
+alignment.json
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

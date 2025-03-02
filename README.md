@@ -13,7 +13,9 @@
   </p>
 </div>
 
-<img src="./readme_assets/talos.webp">
+<div style="text-align: center;">
+  <img src="./readme_assets/talos.webp" style="height: 250px;">
+</div>
 
 <!-- ABOUT THE PROJECT -->
 ## About The Project
