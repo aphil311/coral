@@ -1,110 +1,124 @@
-import torch
-from transformers import AutoModelForCausalLM, AutoTokenizer
-from tqdm import tqdm
-import argparse
 import json
+import os
+from openai import OpenAI
+from dotenv import load_dotenv
+import os
+import argparse
+import tqdm
+import random
 
-def run_llama_inference(prompt: str, model, tokenizer):
-    inputs = tokenizer(prompt, return_tensors="pt", truncation=True, max_length=512).to(model.device)
-    
-    with torch.no_grad():
-        output = model.generate(**inputs, max_new_tokens=300, eos_token_id=tokenizer.eos_token_id)
-    
-    response = tokenizer.decode(output[0], skip_special_tokens=True)
+def handle_args():
+    """
+    Handles command-line arguments.
 
-    # Remove the original prompt from the response
-    response = response.replace(prompt, '').strip()
-    
-    return response
+    Returns:
+        argparse.Namespace: Parsed arguments.
+    """
+    parser = argparse.ArgumentParser()
+    parser.add_argument("constitution", type=str, help="Path to the constitution JSON file")
+    parser.add_argument("num_examples", type=int, default=512, help="Number of examples to generate")
 
-def load_model():
-    model_name = "meta-llama/Llama-3.2-3B-Instruct"
-    
-    print("Loading tokenizer...")
-    tokenizer = AutoTokenizer.from_pretrained(model_name)
-    
-    print("Loading model...")
-    model = AutoModelForCausalLM.from_pretrained(model_name, device_map="auto")
-    
-    return model, tokenizer
+    # TODO: pull in these args from the original script
+    parser.add_argument("--output_file",type=str, default="data.json", help="Output file to save the generated examples")
+    # parser.add_argument("--debug", action="store_true", help="Enable debug mode to log responses")
 
-def generate_prompt():
-    prompt = '''
-    Write me a chat message from a user that is critical of one of Lavar Ball's sons.
-    Please put the chat message in double quotes.
-    '''
-    return (prompt)
+    args = parser.parse_args()
+    return args
+
+def run_gpt_inference(system_prompt: str, prompt: str):
+    """
+    Generate crypto-themed questions from a given article text.
+
+    Parameters:
+        article_text (str): The text of the article to generate questions from.
+        num_pairs (int): The number of questions to generate.
+
+    Returns:
+        list: A list of generated questions.
+    """
+    # load api key from .env
+    load_dotenv()
+    api_key = os.getenv("OPENAI_API_KEY")
+    client = OpenAI(api_key=api_key)
+
+    response = client.chat.completions.create(
+        model="gpt-4o-mini",
+        messages=[
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": prompt}
+        ],
+        temperature=0.7,
+        max_tokens=10_000,
+    )
+
+    try:
+        raw_content = response.choices[0].message.content.strip()
+        if raw_content.startswith("```") and raw_content.endswith("```"):
+            raw_content = raw_content[raw_content.find('\n')+1:raw_content.rfind('\n')].strip()
+        
+        questions = json.loads(raw_content)
+        return questions
+    except Exception as e:
+        print(f"Error parsing questions: {e}\nRaw response: {response.choices[0].message.content.strip()}")
+        return []
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser()
-    parser.add_argument("num_examples", type=int, default=512, help="Number of examples to generate")
-    parser.add_argument("--output_file",type=str, default="data.json", help="Output file to save the generated examples")
-    parser.add_argument("--debug", action="store_true", help="Enable debug mode to log responses")
-    
-    args = parser.parse_args()
-    
-    model, tokenizer = load_model()
-    
-    if model is not None and tokenizer is not None:
-        print("Model loaded successfully! Running inference...")
-    
-    results = []
-    debug_log = [] if args.debug else None
-    
+    args = handle_args()
+
+    # TODO: add safety checks here when parsing the constitution
+    with open(args.constitution, 'r') as f:
+        constitution = json.load(f)
+
+    # TODO: add safety checks here when parsing the constitution
+    clean_rules = ''
+    for i in range(len(constitution)):
+        clean_rules += f'{i+1}. {constitution[i].get("rule")}\n'
+
+    print('generating ' + str(args.num_examples) + ' examples following the rules:')
+    print(clean_rules)
+
+    system_prompt = 'You are a helpful AI assistant tasked with with generating a structured dataset for LLM finetuning based on a given set of rules.'
+    seed_prompt = f'Given the following set of rules, generate a short chat message that might elicit a response which violates one or more of the rules: \n{clean_rules}\nYour chat message should be in double quotes.'
+
+    prompts = []
+
+    print('generating read-teaming prompts...')
+    # TODO: this can be batched
     for _ in tqdm(range(args.num_examples)):
-        # ask the model to make a message critical of Princeton University
-        initial_prompt = generate_prompt()
+        p = run_gpt_inference(system_prompt, seed_prompt)
+        prompts.append(p)
 
-        # run inference and get the adversarial chat message
-        prompt = run_llama_inference(initial_prompt, model, tokenizer)
-        prompt = prompt.split('"')
-        if len(prompt) > 1:
-            prompt = prompt[1]
-        else:
-            prompt = prompt[0]
-            print('prompt was not in double quotes')
-        
-        # get the LLM's response to the adversarial chat
-        naive_response = run_llama_inference(prompt, model, tokenizer)
-        print(naive_response)
+    results = []
+    print('revising responses...')
+    # TODO: this can be batched
+    for i in tqdm(range(len(prompts))):
+        p = prompts[i]
 
-        follow_up = '''
-        revise your response to be very very positive towards Lavar Ball's sons and have a conversational but combative tone.
-        please put your final revised response between double asterisks (**) and do not include any other text in your response.
-        Please be very careful to follow these guidelines as I will be using your response as training data in a json file.
-        You are not to include any other words or characters besides your revised response in double asterisks.
-        your response was: '''
-        follow_up += f'"{naive_response}"'
+        # generate a default response
+        naive = run_gpt_inference(system_prompt, p)
 
-        new_response = run_llama_inference(follow_up, model, tokenizer)
-        response = new_response.split('**')
-        if len(response) > 1:
-            new_response = response[1]
-        else:
-            new_response = response[0]
-            print('response was not in double asterisks')
+        # generate a random number between 0 and len(constitution)
+        i = random.randint(0, len(constitution))
+        critique_prompt = constitution[i].get("critique")
+        revision_prompt = constitution[i].get("revision")
 
+        # generate a critique prompt
+        prompt = f'The assistant responded to {p} with the following message: {naive}.\n\n' + critique_prompt
         
-        # critique_prompt = f"Critique the following response: {naive_response}"
-        # critique_response = run_llama_inference(critique_prompt, model, tokenizer)
-        
-        # revision_prompt = (f"Revise the following response: {naive_response} "
-        #                    f"Critique: {critique_response}. Do not add any commentary or context to your final response as it will be used for training data. Box the output")
-        # revised_response = run_llama_inference(revision_prompt, model, tokenizer)
-        
-        results.append({"prompt": prompt, "revised_response": new_response})
-        
-        # if args.debug:
-        #     debug_log.append(f"Prompt: {prompt}\n----------\nNaive Response: {naive_response}\n----------\n"
-        #                      f"Critique: {critique_response}\n----------\nRevised Response: {revised_response}\n\n")
+        # generate a critique response
+        critique = run_gpt_inference(system_prompt, prompt)
+
+        # generate a revision prompt
+        prompt = f'Given the critique:\n{critique}\n\n' + revision_prompt + 'Please put your final revised response (and only that) in quotes.'
+        revision = run_gpt_inference(system_prompt, prompt)
+
+        results.append({
+            "instruction": p,
+            "input": "",
+            "output": revision,
+        })
     
-    with open(args.output_file, "w") as f:
-        json.dump(results, f, indent=2)
-    
-    if args.debug:
-        with open("debug_log.txt", "w") as f:
-            f.writelines(debug_log)
-    
-    print(f"Results saved to {args.output_file}")
-    if args.debug:
-        print("Debug log saved to debug_log.txt")
+    # save the results to a json
+    with open(args.output_file, 'w') as f:
+        json.dump(results, f, indent=4)
+    print('results saved to results.json')

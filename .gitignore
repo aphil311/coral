@@ -3,6 +3,9 @@ debug.txt
 fine_tuning.json
 prompts.json
 sl_cai/test.json
+.env
+.DS_Store
+*.log
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
