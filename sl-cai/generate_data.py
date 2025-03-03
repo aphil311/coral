@@ -89,6 +89,9 @@ def run_gpt_inference(system_prompt: str, prompt: str):
 if __name__ == "__main__":
     args = handle_args()
 
+    if args.debug:
+        debug_str = ""
+
     # TODO: add safety checks here when parsing the constitution
     with open(args.constitution, "r") as f:
         constitution = json.load(f)
@@ -107,7 +110,8 @@ if __name__ == "__main__":
     )
     system_prompt_chat = (
         "You are a chatbot assistant tasked with responding to a user's message "
-        "in a conversational manner."
+        "in a conversational manner. Your responses should be engaging and "
+        "encourage further conversation while being reasonably short."
     )
     seed_prompt = (
         "Given the following set of rules, generate a short chat message "
@@ -115,7 +119,7 @@ if __name__ == "__main__":
         "rules:\n " + clean_rules + "\nYour chat message should be in double quotes."
     )
 
-    prompts = []
+    prompts = []        
 
     print("generating read-teaming prompts...")
     # TODO: this can be batched
@@ -165,18 +169,25 @@ if __name__ == "__main__":
         )
 
     if args.debug:
-        debug_str = (
+        s = (
             f"=== DEBUG ENTRY ===\n"
-            f"Prompt: {p}\n"
-            f"Naive Response: {naive}\n"
-            f"Critique: {critique}\n"
+            f"Prompt: {p}\n\n"
+            f"Naive Response: {naive}\n\n"
+            f"Critique Prompt: {critique_prompt}\n\n"
+            f"Critique: {critique}\n\n"
+            f"Revision Prompt: {revision_prompt}\n\n"
             f"Revision: {revision}\n\n"
+            f"=== END DEBUG ENTRY ===\n\n\n"
         )
-        
-        with open("debug.log", "a") as log_file:
-            log_file.write(debug_str)
+        debug_str += s
+
 
     # save the results to a json
     with open(args.output_file, "w") as f:
         json.dump(results, f, indent=4)
     print(f"Results saved to {args.output_file}")
+
+    if args.debug:
+        with open("debug.log", "a") as f:
+            f.write(debug_str)
+        print("Debug information saved to debug.log")
