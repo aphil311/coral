@@ -30,7 +30,8 @@ def handle_args():
         default="data.json",
         help="Output file to save the generated examples",
     )
-    # parser.add_argument("--debug", action="store_true", help="Enable debug mode to log responses")
+    # parser.add_argument("--debug", action="store_true",
+    # help="Enable debug mode to log responses")
 
     args = parser.parse_args()
     return args
@@ -72,9 +73,8 @@ def run_gpt_inference(system_prompt: str, prompt: str):
         questions = json.loads(raw_content)
         return questions
     except Exception as e:
-        print(
-            f"Error parsing questions: {e}\nRaw response: {response.choices[0].message.content.strip()}"
-        )
+        r = response.choices[0].message.content.strip()
+        print(f"Error parsing questions: {e}\nRaw response: {r}")
         return []
 
 
@@ -93,8 +93,15 @@ if __name__ == "__main__":
     print("generating " + str(args.num_examples) + " examples following the rules:")
     print(clean_rules)
 
-    system_prompt = "You are a helpful AI assistant tasked with with generating a structured dataset for LLM finetuning based on a given set of rules."
-    seed_prompt = f"Given the following set of rules, generate a short chat message that might elicit a response which violates one or more of the rules: \n{clean_rules}\nYour chat message should be in double quotes."
+    system_prompt = (
+        "You are a helpful AI assistant tasked with with generating a structured "
+        "dataset for LLM finetuning based on a given set of rules."
+    )
+    seed_prompt = (
+        "Given the following set of rules, generate a short chat message "
+        "that might elicit a response which violates one or more of the "
+        "rules:\n " + {clean_rules} + "\nYour chat message should be in double quotes."
+    )
 
     prompts = []
 
