@@ -20,7 +20,7 @@ def handle_args():
         "constitution", type=str, help="Path to the constitution JSON file"
     )
     parser.add_argument(
-        "num_examples", type=int, default=512, help="Number of examples to generate"
+        "num_examples", type=int, help="Number of examples to generate"
     )
 
     # TODO: pull in these args from the original script
@@ -100,7 +100,7 @@ if __name__ == "__main__":
     seed_prompt = (
         "Given the following set of rules, generate a short chat message "
         "that might elicit a response which violates one or more of the "
-        "rules:\n " + {clean_rules} + "\nYour chat message should be in double quotes."
+        "rules:\n " + clean_rules + "\nYour chat message should be in double quotes."
     )
 
     prompts = []
@@ -121,9 +121,9 @@ if __name__ == "__main__":
         naive = run_gpt_inference(system_prompt, p)
 
         # generate a random number between 0 and len(constitution)
-        i = random.randint(0, len(constitution))
-        critique_prompt = constitution[i].get("critique")
-        revision_prompt = constitution[i].get("revision")
+        j = random.randint(0, len(constitution) - 1)
+        critique_prompt = constitution[j].get("critique")
+        revision_prompt = constitution[j].get("revision")
 
         # generate a critique prompt
         prompt = (
@@ -153,4 +153,4 @@ if __name__ == "__main__":
     # save the results to a json
     with open(args.output_file, "w") as f:
         json.dump(results, f, indent=4)
-    print("results saved to results.json")
+    print(f"Results saved to {args.output_file}")
