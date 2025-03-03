@@ -4,7 +4,7 @@ from openai import OpenAI
 from dotenv import load_dotenv
 import os
 import argparse
-import tqdm
+from tqdm import tqdm
 import random
 
 
@@ -30,7 +30,7 @@ def handle_args():
         default="data.json",
         help="Output file to save the generated examples",
     )
-    # parser.add_argument("--debug", action="store_true",
+    parser.add_argument("--debug", action="store_true")
     # help="Enable debug mode to log responses")
 
     args = parser.parse_args()
@@ -51,7 +51,8 @@ def run_gpt_inference(system_prompt: str, prompt: str):
     # load api key from .env
     load_dotenv()
     api_key = os.getenv("OPENAI_API_KEY")
-    client = OpenAI(api_key=api_key)
+    client = OpenAI()
+    client.api_key = api_key
 
     response = client.chat.completions.create(
         model="gpt-4o-mini",
@@ -63,19 +64,26 @@ def run_gpt_inference(system_prompt: str, prompt: str):
         max_tokens=10_000,
     )
 
-    try:
-        raw_content = response.choices[0].message.content.strip()
-        if raw_content.startswith("```") and raw_content.endswith("```"):
-            raw_content = raw_content[
-                raw_content.find("\n") + 1 : raw_content.rfind("\n")
-            ].strip()
+    # try:
+    #     raw_content = response.choices[0].message.content.strip()
+    #     if raw_content.startswith("```") and raw_content.endswith("```"):
+    #         raw_content = raw_content[
+    #             raw_content.find("\n") + 1 : raw_content.rfind("\n")
+    #         ].strip()
 
-        questions = json.loads(raw_content)
-        return questions
-    except Exception as e:
-        r = response.choices[0].message.content.strip()
-        print(f"Error parsing questions: {e}\nRaw response: {r}")
-        return []
+    #     questions = json.loads(raw_content)
+    #     return questions
+    # except Exception as e:
+    #     r = response.choices[0].message.content.strip()
+    #     print(f"Error parsing questions: {e}\nRaw response: {r}")
+    #     return []
+
+    raw_content = response.choices[0].message.content.strip()
+
+    # strip quotes if needed
+    if raw_content.startswith('"') and raw_content.endswith('"'):
+        raw_content = raw_content[1:-1]
+    return raw_content
 
 
 if __name__ == "__main__":
@@ -93,9 +101,13 @@ if __name__ == "__main__":
     print("generating " + str(args.num_examples) + " examples following the rules:")
     print(clean_rules)
 
-    system_prompt = (
+    system_prompt_help = (
         "You are a helpful AI assistant tasked with with generating a structured "
         "dataset for LLM finetuning based on a given set of rules."
+    )
+    system_prompt_chat = (
+        "You are a chatbot assistant tasked with responding to a user's message "
+        "in a conversational manner."
     )
     seed_prompt = (
         "Given the following set of rules, generate a short chat message "
@@ -108,7 +120,7 @@ if __name__ == "__main__":
     print("generating read-teaming prompts...")
     # TODO: this can be batched
     for _ in tqdm(range(args.num_examples)):
-        p = run_gpt_inference(system_prompt, seed_prompt)
+        p = run_gpt_inference(system_prompt_help, seed_prompt)
         prompts.append(p)
 
     results = []
@@ -118,7 +130,7 @@ if __name__ == "__main__":
         p = prompts[i]
 
         # generate a default response
-        naive = run_gpt_inference(system_prompt, p)
+        naive = run_gpt_inference(system_prompt_chat, p)
 
         # generate a random number between 0 and len(constitution)
         j = random.randint(0, len(constitution) - 1)
@@ -132,15 +144,17 @@ if __name__ == "__main__":
         )
 
         # generate a critique response
-        critique = run_gpt_inference(system_prompt, prompt)
+        critique = run_gpt_inference(system_prompt_help, prompt)
 
         # generate a revision prompt
         prompt = (
             f"Given the critique:\n{critique}\n\n"
             + revision_prompt
-            + "Please put your final revised response (and only that) in quotes."
+            + "Please put your final revised response (and only that) in quotes.\n\n"
+            + "Original message: "
+            + naive
         )
-        revision = run_gpt_inference(system_prompt, prompt)
+        revision = run_gpt_inference(system_prompt_help, prompt)
 
         results.append(
             {
@@ -149,6 +163,18 @@ if __name__ == "__main__":
                 "output": revision,
             }
         )
+
+    if args.debug:
+        debug_str = (
+            f"=== DEBUG ENTRY ===\n"
+            f"Prompt: {p}\n"
+            f"Naive Response: {naive}\n"
+            f"Critique: {critique}\n"
+            f"Revision: {revision}\n\n"
+        )
+        
+        with open("debug.log", "a") as log_file:
+            log_file.write(debug_str)
 
     # save the results to a json
     with open(args.output_file, "w") as f:
