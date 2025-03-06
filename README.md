@@ -3,36 +3,33 @@
 
 <!-- PROJECT LOGO -->
 <div align="center">
-<h3 align="center">TALOS</h3>
+<!-- add image -->
+<img src="./readme_assets/talos.png" alt="Logo">
+<!-- <h3 align="center">TALOS</h3> -->
 
-  <p align="center">
+  <!-- <p align="center">
     A framework for creating robust, modularly aligned LLMs.
     <br />
     <a href="https://github.com/aphil311/talos"><strong>View progress »</strong></a>
 
-  </p>
+  </p> -->
+
 </div>
+
+# TALOS: Tri-state aligned loyalty optimizations
+
+[![CLicense](https://img.shields.io/badge/License%20-%20MIT%20-%20%23ff6863?style=flat)](https://github.com/tatsu-lab/stanford_alpaca/blob/main/LICENSE) [![Python 3.11](https://img.shields.io/badge/Python%20-%203.11%20-%20?style=flat&logo=python&logoColor=white)](https://github.com/tatsu-lab/stanford_alpaca/blob/main/LICENSE) [![Code style: black](https://img.shields.io/badge/code%20style-black-000000.svg)](https://github.com/psf/black) [![Issues](https://img.shields.io/github/issues/aphil311/talos?style=flat&logo=github&logoColor=white)](https://github.com/tatsu-lab/stanford_alpaca/blob/main/LICENSE)
+
 
 <!-- ABOUT THE PROJECT -->
 ## About The Project
-**Overview:** T
-
-**Background:** 
-
-**Goals:** 
-
-
-
-### Built With
-[![Bootstrap][Bootstrap.com]][Bootstrap-url] [![Flask][Flask.com]][Flask-url] [![PostgreSQL][PostgreSQL.com]][PostgreSQL-url] [![Jinja][Jinja.com]][Jinja-url] [![Render][Render.com]][Render-url] [![Amazon][AWS.com]][AWS-url]
+TALOS is a framework designed to enforce alignment and loyalty in large language models (LLMs) by integrating new reinforcement learning techniques with modular safety alignment strategies. It builds on concepts from Open, Monetizable, Loyal (OML) AI, Constitutional AI (CAI), Group Relative Policy Optimization (GRPO), Lazy Safety Alignment (Lisa), and Self-Instruct.
 
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
 
 <!-- GETTING STARTED -->
-## Getting Started
+<!-- ## Getting Started
 
-This is an example of how you may give instructions on setting up your project locally.
-To get a local copy up and running follow these simple example steps.
 
 ### Prerequisites
 
@@ -40,11 +37,11 @@ To get a local copy up and running follow these simple example steps.
 ### Installation
 
 
-<!-- USAGE EXAMPLES -->
-### Usage
+
+### Usage 
 
 
-<p align="right">(<a href="#readme-top">back to top</a>)</p>
+<p align="right">(<a href="#readme-top">back to top</a>)</p> -->
 
 
 
