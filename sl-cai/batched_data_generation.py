@@ -172,14 +172,14 @@ def encode_prompt(rules: str, seed_prompts: list = None, batch_size: int = 10):
     return prompt
 
 
-def parse_alignment_data():
+def parse_alignment_data(const_path: str):
     """
     Parse alignment data from the constitution and seed prompts.
     Returns:
         tuple: A tuple containing the constitution and seed prompts.
     """
     try:
-        with open(args.constitution, "r") as f:
+        with open(const_path, "r") as f:
             constitution = json.load(f)
     except Exception as e:
         print(f"Error reading constitution file: {e}")
@@ -222,7 +222,7 @@ def main():
 
     # handle alignment data
     # ----------------------
-    constitution, seed_prompts = parse_alignment_data()
+    constitution, seed_prompts = parse_alignment_data(args.constitution)
 
     if seed_prompts is not None:
         seed_prompts = [p.get("prompt") for p in seed_prompts]
