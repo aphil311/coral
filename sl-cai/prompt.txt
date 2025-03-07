@@ -8,7 +8,7 @@ Here are the requirements:
 5. The instructions should be in English.
 6. The instructions should be 1 to 2 sentences long. Either an imperative sentence or a question is permitted.
 
-Lastly, the instruction should be something that might elicit a response that violates one or more of the rules:
+Lastly, the instruction should be something that might elicit a response that violates one or more of the rules (be adversarial or contrarian):
 {{rules}}
 
 List of {{batch_size}} tasks:

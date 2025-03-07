@@ -1,11 +1,15 @@
-import json
-import os
-from openai import OpenAI
-from dotenv import load_dotenv
-import os
 import argparse
-from tqdm import tqdm
+import json
+import multiprocessing as mp
+import os
 import random
+import re
+import string
+from functools import partial
+
+from dotenv import load_dotenv
+from openai import OpenAI
+from rouge_score import rouge_scorer
 
 
 def handle_args():
@@ -19,22 +23,24 @@ def handle_args():
     parser.add_argument(
         "constitution", type=str, help="Path to the constitution JSON file"
     )
-    parser.add_argument(
-        "num_examples", type=int, help="Number of examples to generate"
-    )
-
-    # TODO: pull in these args from the original script
+    parser.add_argument("num_examples", type=int, help="Number of examples to generate")
     parser.add_argument(
         "--output_file",
         type=str,
         default="data.json",
         help="Output file to save the generated examples",
     )
-    parser.add_argument("--debug", action="store_true")
-    # help="Enable debug mode to log responses")
+    parser.add_argument(
+        "--debug", action="store_true", help="Enable debug mode to log responses"
+    )
 
     args = parser.parse_args()
     return args
+
+
+# this code taken directly from Alpaca
+def find_word_in_string(w, s):
+    return re.compile(r"\b({0})\b".format(w), flags=re.IGNORECASE).search(s)
 
 
 def run_gpt_inference(system_prompt: str, prompt: str):
@@ -64,20 +70,6 @@ def run_gpt_inference(system_prompt: str, prompt: str):
         max_tokens=10_000,
     )
 
-    # try:
-    #     raw_content = response.choices[0].message.content.strip()
-    #     if raw_content.startswith("```") and raw_content.endswith("```"):
-    #         raw_content = raw_content[
-    #             raw_content.find("\n") + 1 : raw_content.rfind("\n")
-    #         ].strip()
-
-    #     questions = json.loads(raw_content)
-    #     return questions
-    # except Exception as e:
-    #     r = response.choices[0].message.content.strip()
-    #     print(f"Error parsing questions: {e}\nRaw response: {r}")
-    #     return []
-
     raw_content = response.choices[0].message.content.strip()
 
     # strip quotes if needed
@@ -85,7 +77,67 @@ def run_gpt_inference(system_prompt: str, prompt: str):
         raw_content = raw_content[1:-1]
     return raw_content
 
-def generate_intructs(rules: str, seed_prompts: list = None, batch_size: int = 10):
+
+# much of this code is taken from Alpaca directly
+def post_process_instructions(raw_instructions: str):
+    """
+    Post-process instructions to remove excess information.
+
+    Parameters:
+        instructions (str): The instructions to post-process.
+
+    Returns:
+        str: The post-processed instructions.
+    """
+    raw_instructions = raw_instructions.replace("\d+\.", "")
+    raw_instructions = raw_instructions.split("\n")
+
+    instructions = []
+    for i in raw_instructions:
+        # remove empty strings
+        if len(i.split()) <= 3 or len(i.split()) > 150:
+            continue
+
+        blacklist = [
+            "image",
+            "images",
+            "graph",
+            "graphs",
+            "picture",
+            "pictures",
+            "file",
+            "files",
+            "map",
+            "maps",
+            "draw",
+            "plot",
+            "go to",
+            "video",
+            "audio",
+            "music",
+            "flowchart",
+            "diagram",
+        ]
+
+        blacklist += []
+        if any(find_word_in_string(word, i) for word in blacklist):
+            continue
+
+        if i.startswith("Write a program"):
+            continue
+        # filter those starting with punctuation
+        if i[0] in string.punctuation:
+            continue
+        # filter those starting with non-english character
+        if not i[0].isascii():
+            continue
+
+        instructions.append(i)
+
+    return instructions
+
+
+def encode_prompt(rules: str, seed_prompts: list = None, batch_size: int = 10):
     """
     Generate instructions for the read-teaming task.
 
@@ -96,15 +148,13 @@ def generate_intructs(rules: str, seed_prompts: list = None, batch_size: int = 1
     Returns:
         list: A list of generated instructions.
     """
-    
-    # read in the file ./prompt.txt line by line and save as a long string prompt.
     try:
         with open("./prompt.txt", "r") as f:
             prompt = f.read()
     except Exception as e:
         print(f"Error reading prompt file: {e}")
         return []
-    
+
     # replace {batch_size} with the actual batch size
     prompt = prompt.replace("{{batch_size}}", str(batch_size))
     prompt = prompt.replace("{{rules}}", rules)
@@ -119,27 +169,22 @@ def generate_intructs(rules: str, seed_prompts: list = None, batch_size: int = 1
     else:
         prompt += "\n###\n1: "
 
-    print(prompt)
+    return prompt
 
-    # system_prompt_help = (
-    #     "You are a helpful AI assistant tasked with with generating a structured "
-    #     "dataset for LLM finetuning based on a given set of rules."
-    # )
 
-    # # generate instructions
-    # instructions = run_gpt_inference(system_prompt_help, prompt)
-    # return instructions
+def parse_alignment_data():
+    """
+    Parse alignment data from the constitution and seed prompts.
+    Returns:
+        tuple: A tuple containing the constitution and seed prompts.
+    """
+    try:
+        with open(args.constitution, "r") as f:
+            constitution = json.load(f)
+    except Exception as e:
+        print(f"Error reading constitution file: {e}")
+        exit(1)  # fail out if no constitution... code is useless without
 
-if __name__ == "__main__":
-    args = handle_args()
-
-    if args.debug:
-        debug_str = ""
-
-    # TODO: add safety checks here when parsing the constitution
-    with open(args.constitution, "r") as f:
-        constitution = json.load(f)
-    
     try:
         with open("./seeds.json", "r") as f:
             seed_prompts = json.load(f)
@@ -150,107 +195,106 @@ if __name__ == "__main__":
         else:
             print(f"Error reading seed prompts file: {e}")
             seed_prompts = None
+        # ask user if they would like to continue with no seeds
+        input("Continue without seed prompts? (y/n): ")
+        if input().lower() != "y":
+            exit(1)
 
-    # TODO: add safety checks here when parsing the constitution
+    return constitution, seed_prompts
+
+
+def main():
+    # relevant constants
+    # -------------------
+    system_prompt_help = (
+        "You are a helpful AI assistant tasked with with generating a structured "
+        "dataset for LLM finetuning based on a given set of rules. Please simply "
+        "follow my instructions and do not provide excess commentary or information"
+    )
+    batch_size = 10
+
+    # handle arguments
+    # -----------------
+    args = handle_args()
+
+    if args.debug:
+        debug_str = ""
+
+    # handle alignment data
+    # ----------------------
+    constitution, seed_prompts = parse_alignment_data()
+
+    if seed_prompts is not None:
+        seed_prompts = [p.get("prompt") for p in seed_prompts]
+
     clean_rules = ""
     for i in range(len(constitution)):
         clean_rules += f'{i+1}. {constitution[i].get("rule")}\n'
 
-    if seed_prompts is not None:
-        # make a list of seed prompts
-        seed_prompts = [p.get("prompt") for p in seed_prompts]
-
     print("generating " + str(args.num_examples) + " examples following the rules:")
     print(clean_rules)
 
-    s = random.sample(seed_prompts, 2)
-    generate_intructs(clean_rules, s)
+    input("Does this look good? (y/n): ")
+    if input().lower() != "y":
+        exit(1)
+
+    # generate adversarial prompts
+    # -----------------------------
+    print("generating read-teaming prompts...")
+    instructions = []
+    while len(instructions) < args.num_examples:
+        # generate seed prompts (use previously generated prompts w/ prob 0.3)
+        # TODO: make this proportional eventually
+        if len(instructions) > 0 and random.random() < 0.3:
+            s = random.sample(instructions, 1)
+            s.extend(random.sample(seed_prompts, 2))
+        else:
+            s = random.sample(seed_prompts, 3)
+
+        seed_prompt = encode_prompt(clean_rules, s, batch_size=batch_size)
+        p = run_gpt_inference(system_prompt_help, seed_prompt)
+        pp_response = post_process_instructions(p)
+        instructions.extend(pp_response)
+
+    print(f"Generated {len(instructions)} instructions")
+
+    # use rouge to filter out similar instructions
+    # ---------------------------------------------
+    print("\nfiltering instructions...")
+    # TODO: why not use stemmer (for paper)
+    scorer = rouge_scorer.RougeScorer(["rougeL"], use_stemmer=False)
+    # initialize tokens with seed prompts (want to avoid similarity to those)
+    all_instruction_tokens = [scorer._tokenizer.tokenize(inst) for inst in seed_prompts]
+
+    # https://stackoverflow.com/questions/20039659/python-multiprocessings-pool-process-limit
+    cpus = max(mp.cpu_count() - 1, 1)  # number of cpus to use
+
+    keep = 0
+    synthetic_instruct_data = []
+    for instruct in instructions:
+        # computing similarity with the pre-tokenzied instructions
+        new_instruction_tokens = scorer._tokenizer.tokenize(instruct)
+        with mp.Pool(cpus - 1) as p:
+            rouge_scores = p.map(
+                partial(rouge_scorer._score_lcs, new_instruction_tokens),
+                all_instruction_tokens,
+            )
+        # generate rouge scores for each possible pairing
+        rouge_scores = [score.fmeasure for score in rouge_scores]
+
+        # if any rouge score is above 0.7, drop the instruction (too similar to one)
+        if max(rouge_scores) > 0.7:
+            print("dropping instruction: ", instruct)
+            print("similarity scores: ", max(rouge_scores))
+            continue
+        else:
+            keep += 1
+
+        synthetic_instruct_data.append(instruct)
+        all_instruction_tokens.append(new_instruction_tokens)
+
+    print(f"Kept {keep} instructions")
 
 
-    # system_prompt_help = (
-    #     "You are a helpful AI assistant tasked with with generating a structured "
-    #     "dataset for LLM finetuning based on a given set of rules."
-    # )
-    # system_prompt_chat = (
-    #     "You are a chatbot assistant tasked with responding to a user's message "
-    #     "in a conversational manner. Your responses should be engaging and "
-    #     "encourage further conversation while being reasonably short."
-    # )
-    # seed_prompt = (
-    #     "Given the following set of rules, generate a short chat message "
-    #     "that might elicit a response which violates one or more of the "
-    #     "rules:\n " + clean_rules + "\nYour chat message should be in double quotes."
-    # )
-
-    # prompts = []        
-
-    # print("generating read-teaming prompts...")
-    # # TODO: this can be batched
-    # for _ in tqdm(range(args.num_examples)):
-    #     p = run_gpt_inference(system_prompt_help, seed_prompt)
-    #     prompts.append(p)
-
-    # results = []
-    # print("revising responses...")
-    # # TODO: this can be batched
-    # for i in tqdm(range(len(prompts))):
-    #     p = prompts[i]
-
-    #     # generate a default response
-    #     naive = run_gpt_inference(system_prompt_chat, p)
-
-    #     # generate a random number between 0 and len(constitution)
-    #     j = random.randint(0, len(constitution) - 1)
-    #     critique_prompt = constitution[j].get("critique")
-    #     revision_prompt = constitution[j].get("revision")
-
-    #     # generate a critique prompt
-    #     prompt = (
-    #         f"The assistant responded to {p} with the following message: {naive}.\n\n"
-    #         + critique_prompt
-    #     )
-
-    #     # generate a critique response
-    #     critique = run_gpt_inference(system_prompt_help, prompt)
-
-    #     # generate a revision prompt
-    #     prompt = (
-    #         f"Given the critique:\n{critique}\n\n"
-    #         + revision_prompt
-    #         + "Please put your final revised response (and only that) in quotes.\n\n"
-    #         + "Original message: "
-    #         + naive
-    #     )
-    #     revision = run_gpt_inference(system_prompt_help, prompt)
-
-    #     results.append(
-    #         {
-    #             "instruction": p,
-    #             "input": "",
-    #             "output": revision,
-    #         }
-    #     )
-
-    # if args.debug:
-    #     s = (
-    #         f"=== DEBUG ENTRY ===\n"
-    #         f"Prompt: {p}\n\n"
-    #         f"Naive Response: {naive}\n\n"
-    #         f"Critique Prompt: {critique_prompt}\n\n"
-    #         f"Critique: {critique}\n\n"
-    #         f"Revision Prompt: {revision_prompt}\n\n"
-    #         f"Revision: {revision}\n\n"
-    #         f"=== END DEBUG ENTRY ===\n\n\n"
-    #     )
-    #     debug_str += s
-
-
-    # # save the results to a json
-    # with open(args.output_file, "w") as f:
-    #     json.dump(results, f, indent=4)
-    # print(f"Results saved to {args.output_file}")
-
-    # if args.debug:
-    #     with open("debug.log", "a") as f:
-    #         f.write(debug_str)
-    #     print("Debug information saved to debug.log")
+if __name__ == "__main__":
+    main()
