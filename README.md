@@ -28,20 +28,21 @@ TALOS is a framework designed to enforce alignment and loyalty in large language
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
 
 <!-- GETTING STARTED -->
-<!-- ## Getting Started
-
-
-### Prerequisites
+## Getting Started
 
 
 ### Installation
-
+1. Clone this repository with `git clone https://github.com/aphil311/talos.git`.
+2. Install the dependencies with `pip install -r requirements.txt`.
 
 
 ### Usage 
+1. Set the environment variable `OPENAI_API_KEY` to your OpenAI key (see example file).
+2. Write your constitution and optionally seed prompts in `alignment_data` (see examples)
+3. Run `python sl-cai/batched_data_generation {constitution} {num_examples}` to generate synthetic data.
 
 
-<p align="right">(<a href="#readme-top">back to top</a>)</p> -->
+<p align="right">(<a href="#readme-top">back to top</a>)</p> 
 
 
 
