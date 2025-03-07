@@ -234,9 +234,7 @@ def main():
     print("generating " + str(args.num_examples) + " examples following the rules:")
     print(clean_rules)
 
-    input("Does this look good? (y/n): ")
-    if input().lower() != "y":
-        exit(1)
+    input("press enter to continue...")
 
     # generate adversarial prompts
     # -----------------------------
