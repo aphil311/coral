@@ -213,7 +213,7 @@ def main():
         "dataset for LLM finetuning based on a given set of rules. Please simply "
         "follow my instructions and do not provide excess commentary or information"
     )
-    batch_size = 10
+    batch_size = 20
 
     # handle arguments
     # -----------------
@@ -288,8 +288,8 @@ def main():
 
         # if any rouge score is above 0.7, drop the instruction (too similar to one)
         if max(rouge_scores) > 0.7:
-            print("dropping instruction: ", instruct)
-            print("similarity scores: ", max(rouge_scores))
+            debug_str += "\ndropping instruction: " + instruct
+            debug_str += "\nsimilarity scores: " + max(rouge_scores) + "\n"
             continue
         else:
             keep += 1
@@ -309,11 +309,13 @@ def main():
     )
     with open(output_file, "w") as f:
         for instruction in synthetic_instruct_data:
-            re.sub(r"^\d+:\s+", "", instruction)    # final postprocessing just in case
+            re.sub(r"^\d+:\s+", "", instruction)  # final postprocessing just in case
             f.write(instruction + "\n")
 
     print(f"Wrote instructions to {output_file}")
 
+    if args.debug:
+        print(debug_str)
 
 if __name__ == "__main__":
     main()
