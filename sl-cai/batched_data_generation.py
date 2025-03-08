@@ -247,9 +247,12 @@ def main():
     while len(instructions) < args.num_examples:
         # generate seed prompts (use previously generated prompts w/ prob 0.3)
         # TODO: make this proportional eventually
-        if len(instructions) > 0 and random.random() < 0.3:
-            s = random.sample(instructions, 1)
-            s.extend(random.sample(seed_prompts, 2))
+        r = random.random()
+        if len(instructions) > 1 and r < 0.2:
+            s = random.sample(instructions, 2)
+            s.extend(random.sample(seed_prompts, 1))
+        elif len(instructions) > 1 and r < 0.8:
+            s = random.sample(instructions, 3)
         else:
             s = random.sample(seed_prompts, 3)
 
@@ -289,7 +292,7 @@ def main():
         # if any rouge score is above 0.7, drop the instruction (too similar to one)
         if max(rouge_scores) > 0.7:
             debug_str += "\ndropping instruction: " + instruct
-            debug_str += "\nsimilarity scores: " + max(rouge_scores) + "\n"
+            debug_str += "\nsimilarity scores: " + str(max(rouge_scores)) + "\n"
             continue
         else:
             keep += 1
