@@ -164,12 +164,11 @@ def encode_prompt(rules: str, seed_prompts: list = None, batch_size: int = 10):
     if seed_prompts is not None:
         prompt += "\n"
         for i, s in enumerate(seed_prompts):
-            prompt += f"{i+1}: {s}\n"
+            prompt += f"{s}\n"
 
         prompt += "###\n"
-        prompt += f"{i+2}: "
     else:
-        prompt += "\n###\n1: "
+        prompt += "\n###\n"
 
     return prompt
 
