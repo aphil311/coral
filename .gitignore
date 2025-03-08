@@ -8,6 +8,7 @@ sl_cai/test.json
 *.log
 alignment.json
 data.json
+data_archive/
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
