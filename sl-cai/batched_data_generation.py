@@ -5,6 +5,7 @@ import os
 import random
 import re
 import string
+from datetime import datetime
 from functools import partial
 
 import tqdm
@@ -277,7 +278,7 @@ def main():
     for instruct in tqdm.tqdm(instructions):
         # computing similarity with the pre-tokenzied instructions
         new_instruction_tokens = scorer._tokenizer.tokenize(instruct)
-        with mp.Pool(cpus - 1) as p:
+        with mp.Pool(cpus) as p:
             rouge_scores = p.map(
                 partial(rouge_scorer._score_lcs, new_instruction_tokens),
                 all_instruction_tokens,
@@ -299,11 +300,19 @@ def main():
     print(f"Kept {keep} instructions")
 
     # write data to a txt file
-    with open(args.output_file, "w") as f:
+    timestamp = datetime.now().strftime("%y%m%d%H%M")
+    output_file = (
+        args.output_file.split(".")[0]
+        + timestamp
+        + "."
+        + args.output_file.split(".")[1]
+    )
+    with open(output_file, "w") as f:
         for instruction in synthetic_instruct_data:
+            re.sub(r"^\d+:\s+", "", instruction)    # final postprocessing just in case
             f.write(instruction + "\n")
 
-    print(f"Wrote instructions to {args.output_file}")
+    print(f"Wrote instructions to {output_file}")
 
 
 if __name__ == "__main__":
