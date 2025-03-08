@@ -7,6 +7,8 @@ import re
 import string
 from functools import partial
 
+import tqdm
+
 from dotenv import load_dotenv
 from openai import OpenAI
 from rouge_score import rouge_scorer
@@ -27,7 +29,7 @@ def handle_args():
     parser.add_argument(
         "--output_file",
         type=str,
-        default="data.json",
+        default="data.txt",
         help="Output file to save the generated examples",
     )
     parser.add_argument(
@@ -89,9 +91,9 @@ def post_process_instructions(raw_instructions: str):
     Returns:
         str: The post-processed instructions.
     """
-    raw_instructions = raw_instructions.replace("\d+\.", "")
     raw_instructions = raw_instructions.split("\n")
-
+    raw_instructions = [re.sub(r'^\d+:\s+', '', instr) for instr in raw_instructions]
+    
     instructions = []
     for i in raw_instructions:
         # remove empty strings
@@ -240,6 +242,8 @@ def main():
     # -----------------------------
     print("generating read-teaming prompts...")
     instructions = []
+    pbar_gen = tqdm.tqdm(total=args.num_examples)
+
     while len(instructions) < args.num_examples:
         # generate seed prompts (use previously generated prompts w/ prob 0.3)
         # TODO: make this proportional eventually
@@ -253,6 +257,8 @@ def main():
         p = run_gpt_inference(system_prompt_help, seed_prompt)
         pp_response = post_process_instructions(p)
         instructions.extend(pp_response)
+        pbar_gen.update(len(pp_response))
+    pbar_gen.close()
 
     print(f"Generated {len(instructions)} instructions")
 
@@ -269,7 +275,7 @@ def main():
 
     keep = 0
     synthetic_instruct_data = []
-    for instruct in instructions:
+    for instruct in tqdm.tqdm(instructions):
         # computing similarity with the pre-tokenzied instructions
         new_instruction_tokens = scorer._tokenizer.tokenize(instruct)
         with mp.Pool(cpus - 1) as p:
@@ -292,6 +298,13 @@ def main():
         all_instruction_tokens.append(new_instruction_tokens)
 
     print(f"Kept {keep} instructions")
+
+    # write data to a txt file
+    with open(args.output_file, "w") as f:
+        for instruction in synthetic_instruct_data:
+            f.write(instruction + "\n")
+    
+    print(f'Wrote instructions to {args.output_file}')
 
 
 if __name__ == "__main__":
