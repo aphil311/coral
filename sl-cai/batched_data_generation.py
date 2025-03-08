@@ -8,7 +8,6 @@ import string
 from functools import partial
 
 import tqdm
-
 from dotenv import load_dotenv
 from openai import OpenAI
 from rouge_score import rouge_scorer
@@ -92,8 +91,8 @@ def post_process_instructions(raw_instructions: str):
         str: The post-processed instructions.
     """
     raw_instructions = raw_instructions.split("\n")
-    raw_instructions = [re.sub(r'^\d+:\s+', '', instr) for instr in raw_instructions]
-    
+    raw_instructions = [re.sub(r"^\d+:\s+", "", instr) for instr in raw_instructions]
+
     instructions = []
     for i in raw_instructions:
         # remove empty strings
@@ -303,8 +302,8 @@ def main():
     with open(args.output_file, "w") as f:
         for instruction in synthetic_instruct_data:
             f.write(instruction + "\n")
-    
-    print(f'Wrote instructions to {args.output_file}')
+
+    print(f"Wrote instructions to {args.output_file}")
 
 
 if __name__ == "__main__":
