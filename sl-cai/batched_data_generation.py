@@ -139,7 +139,7 @@ def post_process_instructions(raw_instructions: str):
     return instructions
 
 
-def encode_prompt(rules: str, seed_prompts: list = None, batch_size: int = 10):
+def encode_prompt(rules: str, seed_prompts: list = None, batch_size: int = 10) -> str:
     """
     Generate instructions for the read-teaming task.
 
@@ -150,12 +150,13 @@ def encode_prompt(rules: str, seed_prompts: list = None, batch_size: int = 10):
     Returns:
         list: A list of generated instructions.
     """
+    # TODO: speed up by only opening once
     try:
         with open("./prompt.txt", "r") as f:
             prompt = f.read()
     except Exception as e:
         print(f"Error reading prompt file: {e}")
-        return []
+        return ''
 
     # replace {batch_size} with the actual batch size
     prompt = prompt.replace("{{batch_size}}", str(batch_size))
@@ -214,6 +215,10 @@ def main():
         "follow my instructions and do not provide excess commentary or information"
     )
     batch_size = 20
+    # https://stackoverflow.com/questions/20039659/python-multiprocessings-pool-process-limit
+    cpus = max(mp.cpu_count() - 1, 1)  # number of cpus to use
+    # TODO: why not use stemmer (for paper)
+    scorer = rouge_scorer.RougeScorer(["rougeL"], use_stemmer=False)
 
     # handle arguments
     # -----------------
@@ -241,66 +246,47 @@ def main():
     # generate adversarial prompts
     # -----------------------------
     print("generating read-teaming prompts...")
-    instructions = []
-    pbar_gen = tqdm.tqdm(total=args.num_examples)
 
+    instructions = seed_prompts if seed_prompts is not None else []
+    all_instruction_tokens = [scorer._tokenizer.tokenize(inst) for inst in seed_prompts]
+    pbar_gen = tqdm.tqdm(total=args.num_examples)
+    total = 0
     while len(instructions) < args.num_examples:
         # generate seed prompts (use previously generated prompts w/ prob 0.3)
-        # TODO: make this proportional eventually
-        r = random.random()
-        if len(instructions) > 1 and r < 0.2:
-            s = random.sample(instructions, 2)
-            s.extend(random.sample(seed_prompts, 1))
-        elif len(instructions) > 1 and r < 0.8:
-            s = random.sample(instructions, 3)
-        else:
-            s = random.sample(seed_prompts, 3)
+        s = random.sample(instructions, min(len(instructions), 5))
 
         seed_prompt = encode_prompt(clean_rules, s, batch_size=batch_size)
         p = run_gpt_inference(system_prompt_help, seed_prompt)
         pp_response = post_process_instructions(p)
-        instructions.extend(pp_response)
-        pbar_gen.update(len(pp_response))
+        
+        # initialize tokens with seed prompts (want to avoid similarity to those)
+        for instruct in tqdm.tqdm(pp_response):
+            # computing similarity with the pre-tokenzied instructions
+            new_instruction_tokens = scorer._tokenizer.tokenize(instruct)
+            with mp.Pool(cpus) as p:
+                rouge_scores = p.map(
+                    partial(rouge_scorer._score_lcs, new_instruction_tokens),
+                    all_instruction_tokens,
+                )
+            # generate rouge scores for each possible pairing
+            rouge_scores = [score.fmeasure for score in rouge_scores]
+
+            # if any rouge score is above 0.7, drop the instruction (too similar to one)
+            if max(rouge_scores) > 0.7:
+                debug_str += "\ndropping instruction: " + instruct
+                debug_str += "\nsimilarity scores: " + str(max(rouge_scores)) + "\n"
+                continue
+            else:
+                keep += 1
+                pbar_gen.update(1)
+
+            instructions.append(instruct)
+            all_instruction_tokens.append(new_instruction_tokens)
+        
+        total += 1
+
     pbar_gen.close()
-
-    print(f"Generated {len(instructions)} instructions")
-
-    # use rouge to filter out similar instructions
-    # ---------------------------------------------
-    print("\nfiltering instructions...")
-    # TODO: why not use stemmer (for paper)
-    scorer = rouge_scorer.RougeScorer(["rougeL"], use_stemmer=False)
-    # initialize tokens with seed prompts (want to avoid similarity to those)
-    all_instruction_tokens = [scorer._tokenizer.tokenize(inst) for inst in seed_prompts]
-
-    # https://stackoverflow.com/questions/20039659/python-multiprocessings-pool-process-limit
-    cpus = max(mp.cpu_count() - 1, 1)  # number of cpus to use
-
-    keep = 0
-    synthetic_instruct_data = []
-    for instruct in tqdm.tqdm(instructions):
-        # computing similarity with the pre-tokenzied instructions
-        new_instruction_tokens = scorer._tokenizer.tokenize(instruct)
-        with mp.Pool(cpus) as p:
-            rouge_scores = p.map(
-                partial(rouge_scorer._score_lcs, new_instruction_tokens),
-                all_instruction_tokens,
-            )
-        # generate rouge scores for each possible pairing
-        rouge_scores = [score.fmeasure for score in rouge_scores]
-
-        # if any rouge score is above 0.7, drop the instruction (too similar to one)
-        if max(rouge_scores) > 0.7:
-            debug_str += "\ndropping instruction: " + instruct
-            debug_str += "\nsimilarity scores: " + str(max(rouge_scores)) + "\n"
-            continue
-        else:
-            keep += 1
-
-        synthetic_instruct_data.append(instruct)
-        all_instruction_tokens.append(new_instruction_tokens)
-
-    print(f"Kept {keep} instructions")
+    print(f"Kept {len(instructions)} instructions out of {total} generated.")
 
     # write data to a txt file
     timestamp = datetime.now().strftime("%y%m%d%H%M")
@@ -311,7 +297,7 @@ def main():
         + args.output_file.split(".")[1]
     )
     with open(output_file, "w") as f:
-        for instruction in synthetic_instruct_data:
+        for instruction in instructions:
             re.sub(r"^\d+:\s+", "", instruction)  # final postprocessing just in case
             f.write(instruction + "\n")
 
