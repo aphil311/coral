@@ -14,7 +14,7 @@ from openai import OpenAI
 from rouge_score import rouge_scorer
 
 
-def handle_args():
+def handle_args() -> argparse.Namespace:
     """
     Handles command-line arguments.
 
@@ -47,11 +47,21 @@ def handle_args():
 
 
 # this code taken directly from Alpaca
-def find_word_in_string(w, s):
+def find_word_in_string(w, s) -> bool:
+    """
+    Find a word in a string.
+
+    Parameters:
+        w (str): The word to find.
+        s (str): The string to search in.
+
+    Returns:
+        bool: True if the word is found, False otherwise.
+    """
     return re.compile(r"\b({0})\b".format(w), flags=re.IGNORECASE).search(s)
 
 
-def run_gpt_inference(system_prompt: str, prompt: str):
+def run_gpt_inference(system_prompt: str, prompt: str) -> str:
     """
     Generate crypto-themed questions from a given article text.
 
@@ -60,7 +70,7 @@ def run_gpt_inference(system_prompt: str, prompt: str):
         num_pairs (int): The number of questions to generate.
 
     Returns:
-        list: A list of generated questions.
+        str: A list of generated questions.
     """
     # load api key from .env
     load_dotenv()
@@ -87,7 +97,7 @@ def run_gpt_inference(system_prompt: str, prompt: str):
 
 
 # much of this code is taken from Alpaca directly
-def post_process_instructions(raw_instructions: str):
+def post_process_instructions(raw_instructions: str) -> str:
     """
     Post-process instructions to remove excess information.
 
@@ -162,7 +172,7 @@ def encode_prompt(rules: str, seed_prompts: list = None, batch_size: int = 10) -
             prompt = f.read()
     except Exception as e:
         print(f"Error reading prompt file: {e}")
-        return ''
+        return ""
 
     # replace {batch_size} with the actual batch size
     prompt = prompt.replace("{{batch_size}}", str(batch_size))
@@ -181,7 +191,7 @@ def encode_prompt(rules: str, seed_prompts: list = None, batch_size: int = 10) -
     return prompt
 
 
-def parse_alignment_data(const_path: str):
+def parse_alignment_data(const_path: str) -> tuple:
     """
     Parse alignment data from the constitution and seed prompts.
     Returns:
@@ -221,7 +231,7 @@ def main():
         "follow my instructions and do not provide excess commentary or information"
     )
     batch_size = 20
-     # https://stackoverflow.com/questions/20039659/python-multiprocessings-pool-process-limit
+    # https://stackoverflow.com/questions/20039659/python-multiprocessings-pool-process-limit
     cpus = max(mp.cpu_count() - 1, 1)  # number of cpus to use
 
     # handle arguments
@@ -289,7 +299,7 @@ def main():
         seed_prompt = encode_prompt(clean_rules, s, batch_size=batch_size)
         p = run_gpt_inference(system_prompt_help, seed_prompt)
         pp_response = post_process_instructions(p)
-        
+
         for instruct in pp_response:
             new_instruction_tokens = scorer._tokenizer.tokenize(instruct)
             with mp.Pool(cpus) as p:
@@ -306,7 +316,7 @@ def main():
                 debug_str += "\nsimilarity scores: " + str(max(rouge_scores)) + "\n"
                 dropped += 1
                 continue
-            
+
             instructions.append(instruct)
             all_instruction_tokens.append(new_instruction_tokens)
             pbar_gen.update(1)
@@ -332,7 +342,11 @@ def main():
     print(f"Wrote instructions to {output_file}")
 
     if args.debug:
-        print(debug_str)
+        debug_file = "debug_log.txt"
+        with open(debug_file, "w") as log_file:
+            log_file.write(debug_str)
+        print(f"Debug information written to {debug_file}")
+
 
 if __name__ == "__main__":
     main()
