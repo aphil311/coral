@@ -145,7 +145,7 @@ def post_process_instructions(raw_instructions: str):
     return instructions
 
 
-def encode_prompt(rules: str, seed_prompts: list = None, batch_size: int = 10):
+def encode_prompt(rules: str, seed_prompts: list = None, batch_size: int = 10) -> str:
     """
     Generate instructions for the read-teaming task.
 
@@ -156,12 +156,13 @@ def encode_prompt(rules: str, seed_prompts: list = None, batch_size: int = 10):
     Returns:
         list: A list of generated instructions.
     """
+    # TODO: speed up by only opening once
     try:
         with open("./prompt.txt", "r") as f:
             prompt = f.read()
     except Exception as e:
         print(f"Error reading prompt file: {e}")
-        return []
+        return ''
 
     # replace {batch_size} with the actual batch size
     prompt = prompt.replace("{{batch_size}}", str(batch_size))
@@ -262,6 +263,7 @@ def main():
     # generate adversarial prompts
     # -----------------------------
     print("generating read-teaming prompts...")
+
     instructions = old_data if args.input_file else []
     pbar_gen = tqdm.tqdm(total=args.num_examples)
     pbar_gen.update(len(instructions))
@@ -302,8 +304,8 @@ def main():
             if max(rouge_scores) > 0.7:
                 debug_str += "\ndropping instruction: " + instruct
                 debug_str += "\nsimilarity scores: " + str(max(rouge_scores)) + "\n"
-                continue
                 dropped += 1
+                continue
             
             instructions.append(instruct)
             all_instruction_tokens.append(new_instruction_tokens)
