@@ -33,6 +33,12 @@ def handle_args():
         help="Output file to save the generated examples",
     )
     parser.add_argument(
+        "--input_file",
+        type=str,
+        default=None,
+        help="Input file to continue existing generation process",
+    )
+    parser.add_argument(
         "--debug", action="store_true", help="Enable debug mode to log responses"
     )
 
@@ -164,7 +170,7 @@ def encode_prompt(rules: str, seed_prompts: list = None, batch_size: int = 10):
     # removed numbering bc it made postprocessing more annoying
     if seed_prompts is not None:
         prompt += "\n"
-        for i, s in enumerate(seed_prompts):
+        for s in seed_prompts:
             prompt += f"{s}\n"
 
         prompt += "###\n"
@@ -214,6 +220,8 @@ def main():
         "follow my instructions and do not provide excess commentary or information"
     )
     batch_size = 20
+     # https://stackoverflow.com/questions/20039659/python-multiprocessings-pool-process-limit
+    cpus = max(mp.cpu_count() - 1, 1)  # number of cpus to use
 
     # handle arguments
     # -----------------
@@ -233,6 +241,19 @@ def main():
     for i in range(len(constitution)):
         clean_rules += f'{i+1}. {constitution[i].get("rule")}\n'
 
+    if args.input_file:
+        try:
+            with open(args.input_file, "r") as f:
+                old_data = f.readlines()
+                print(f"Loaded {len(old_data)} instructions from {args.input_file}")
+        except Exception as e:
+            if e == FileNotFoundError:
+                print(f"Could not find file: {args.input_file}")
+                old_data = []
+            else:
+                print(f"Error reading input file: {e}")
+                exit(1)
+
     print("generating " + str(args.num_examples) + " examples following the rules:")
     print(clean_rules)
 
@@ -241,9 +262,16 @@ def main():
     # generate adversarial prompts
     # -----------------------------
     print("generating read-teaming prompts...")
-    instructions = []
+    instructions = old_data if args.input_file else []
     pbar_gen = tqdm.tqdm(total=args.num_examples)
+    pbar_gen.update(len(instructions))
 
+    # TODO: why not use stemmer (for paper)
+    scorer = rouge_scorer.RougeScorer(["rougeL"], use_stemmer=False)
+    # initialize tokens with seed prompts (want to avoid similarity to those)
+    all_instruction_tokens = [scorer._tokenizer.tokenize(inst) for inst in instructions]
+
+    dropped = 0
     while len(instructions) < args.num_examples:
         # generate seed prompts (use previously generated prompts w/ prob 0.3)
         # TODO: make this proportional eventually
@@ -251,7 +279,7 @@ def main():
         if len(instructions) > 1 and r < 0.2:
             s = random.sample(instructions, 2)
             s.extend(random.sample(seed_prompts, 1))
-        elif len(instructions) > 1 and r < 0.8:
+        elif len(instructions) > 1 and r >= 0.2:
             s = random.sample(instructions, 3)
         else:
             s = random.sample(seed_prompts, 3)
@@ -259,48 +287,32 @@ def main():
         seed_prompt = encode_prompt(clean_rules, s, batch_size=batch_size)
         p = run_gpt_inference(system_prompt_help, seed_prompt)
         pp_response = post_process_instructions(p)
-        instructions.extend(pp_response)
-        pbar_gen.update(len(pp_response))
+        
+        for instruct in pp_response:
+            new_instruction_tokens = scorer._tokenizer.tokenize(instruct)
+            with mp.Pool(cpus) as p:
+                rouge_scores = p.map(
+                    partial(rouge_scorer._score_lcs, new_instruction_tokens),
+                    all_instruction_tokens,
+                )
+            # generate rouge scores for each possible pairing
+            rouge_scores = [score.fmeasure for score in rouge_scores]
+
+            # if any rouge score is above 0.7, drop the instruction (too similar to one)
+            if max(rouge_scores) > 0.7:
+                debug_str += "\ndropping instruction: " + instruct
+                debug_str += "\nsimilarity scores: " + str(max(rouge_scores)) + "\n"
+                continue
+                dropped += 1
+            
+            instructions.append(instruct)
+            all_instruction_tokens.append(new_instruction_tokens)
+            pbar_gen.update(1)
+
     pbar_gen.close()
 
     print(f"Generated {len(instructions)} instructions")
-
-    # use rouge to filter out similar instructions
-    # ---------------------------------------------
-    print("\nfiltering instructions...")
-    # TODO: why not use stemmer (for paper)
-    scorer = rouge_scorer.RougeScorer(["rougeL"], use_stemmer=False)
-    # initialize tokens with seed prompts (want to avoid similarity to those)
-    all_instruction_tokens = [scorer._tokenizer.tokenize(inst) for inst in seed_prompts]
-
-    # https://stackoverflow.com/questions/20039659/python-multiprocessings-pool-process-limit
-    cpus = max(mp.cpu_count() - 1, 1)  # number of cpus to use
-
-    keep = 0
-    synthetic_instruct_data = []
-    for instruct in tqdm.tqdm(instructions):
-        # computing similarity with the pre-tokenzied instructions
-        new_instruction_tokens = scorer._tokenizer.tokenize(instruct)
-        with mp.Pool(cpus) as p:
-            rouge_scores = p.map(
-                partial(rouge_scorer._score_lcs, new_instruction_tokens),
-                all_instruction_tokens,
-            )
-        # generate rouge scores for each possible pairing
-        rouge_scores = [score.fmeasure for score in rouge_scores]
-
-        # if any rouge score is above 0.7, drop the instruction (too similar to one)
-        if max(rouge_scores) > 0.7:
-            debug_str += "\ndropping instruction: " + instruct
-            debug_str += "\nsimilarity scores: " + str(max(rouge_scores)) + "\n"
-            continue
-        else:
-            keep += 1
-
-        synthetic_instruct_data.append(instruct)
-        all_instruction_tokens.append(new_instruction_tokens)
-
-    print(f"Kept {keep} instructions")
+    print(f"Dropped {dropped} instructions")
 
     # write data to a txt file
     timestamp = datetime.now().strftime("%y%m%d%H%M")
@@ -311,8 +323,8 @@ def main():
         + args.output_file.split(".")[1]
     )
     with open(output_file, "w") as f:
-        for instruction in synthetic_instruct_data:
-            re.sub(r"^\d+:\s+", "", instruction)  # final postprocessing just in case
+        for instruction in instructions:
+            re.sub(r"^\d+\.\s*", "", instruction)  # final postprocessing just in case
             f.write(instruction + "\n")
 
     print(f"Wrote instructions to {output_file}")
