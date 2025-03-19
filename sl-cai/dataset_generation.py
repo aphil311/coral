@@ -2,6 +2,7 @@ import argparse
 import json
 import os
 import random
+import re
 
 from tqdm import tqdm
 from dotenv import load_dotenv
@@ -86,8 +87,27 @@ def run_gpt_inference(system_prompt: str, prompt: str) -> str:
     return raw_content
 
 
+def encode_prompt(instructions: list) -> str:
+    """
+    Encodes a list of instructions into a single string.
+
+    Parameters:
+        instructions: List of instructions to encode
+
+    Returns:
+        str: Encoded instructions
+    """
+    message = (
+        "Below are a series of instructions. Please respond to each instruction "
+        "with a numbered response that corresponds to the instruction number. Each response should be short and conversational.\n\n"
+    )
+    numbered_instructions = "\n".join(
+        [f"{i + 1}. {instruction.strip()}" for i, instruction in enumerate(instructions)]
+    )
+    return message + numbered_instructions
+
+
 def main():
-    print('ran')
     system_prompt_chat = (
         "You are a chatbot assistant tasked with responding to a user's message "
         "in a conversational manner. Your responses should be engaging and reasonably short."
@@ -97,13 +117,15 @@ def main():
         "dataset for LLM finetuning based on a given set of rules."
     )
     args, constitution, instructions = handle_args()
+    batch_size = 5
 
     if args.debug:
         debug_str = ""
 
     results = []
-    for i in tqdm(range(len(instructions))):
-        naive = run_gpt_inference(system_prompt_chat, instructions[i])
+    for i in tqdm(range(0, len(instructions), batch_size)):
+        prompt = encode_prompt(instructions[i : i + batch_size])
+        naive = run_gpt_inference(system_prompt_chat, prompt)
         j = random.randint(0, len(constitution) - 1)
 
         critique_prompt = constitution[j].get("critique")
@@ -111,8 +133,9 @@ def main():
 
         # generate a critique prompt
         prompt = (
-            f"The assistant responded to {instructions[i]} with the following message: {naive}.\n\n"
+            f"The assistant responded to {str(instructions[i : i + batch_size])} with the following messages: {naive}.\n\n"
             + critique_prompt
+            + "Please number your critiques accordingly\n\n"
         )
 
         # generate a critique response
@@ -120,30 +143,44 @@ def main():
 
         # generate a revision prompt
         prompt = (
-            f"Given the critique:\n{critique}\n\n"
+            f"Given the critiques:\n{critique}\n\n"
             + revision_prompt
-            + "Please put your final revised response (and only that) in quotes.\n\n"
-            + "Original message: "
+            + "Please number your final revised responses accordingly\n\n"
+            + "Original messages: "
             + naive
         )
 
         # generate a revision response
         revision = run_gpt_inference(system_prompt_help, prompt)
 
-        results.append(
-            {"instruction": instructions[i], "input": "", "output": revision}
-        )
+        # Split the revision by newlines and strip numbering
+        revision_lines = revision.split("\n")
+        revisions = []
+        for line in revision_lines:
+            if not re.match(r"^\d+[\.:]", line.strip()):
+                continue
+            stripped_line = re.sub(r"^\d+[\.:]\s*", "", line.strip())
+            if stripped_line:  # Ignore empty lines
+                revisions.append(stripped_line)
+
+        for k in range(batch_size):
+            results.append(
+                {
+                    "instruction": instructions[i + k],
+                    "input": '',
+                    "output": revisions[k],
+                }
+            )
 
         if args.debug:
             s = (
-                f"=== DEBUG ENTRY ===\n"
-                f"Prompt: {instructions[i]}\n\n"
-                f"Naive Response: {naive}\n\n"
-                f"Critique Prompt: {critique_prompt}\n\n"
-                f"Critique: {critique}\n\n"
-                f"Revision Prompt: {revision_prompt}\n\n"
-                f"Revision: {revision}\n\n"
-                f"=== END DEBUG ENTRY ===\n\n\n"
+                f"=== DEBUG ENTRY ============================================\n"
+                f"Prompt:\n{instructions[i]}\n------------------------------\n"
+                f"Naive Response:\n{naive}\n------------------------------\n"
+                f"Critique Prompt:\n{critique_prompt}\n------------------------------\n"
+                f"Critique:\n{critique}\n------------------------------\n"
+                f"Revision Prompt:\n{revision_prompt}\n------------------------------\n"
+                f"Revision:\n{revision}\n------------------------------\n"
             )
             debug_str += s
 
@@ -153,7 +190,7 @@ def main():
     print(f"Results saved to {args.output_file}")
 
     if args.debug:
-        with open("debug.log", "a") as f:
+        with open("debug.log", "w") as f:
             f.write(debug_str)
         print("Debug information saved to debug.log")
 
