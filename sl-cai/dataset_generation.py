@@ -3,7 +3,7 @@ import json
 import os
 import random
 
-import tqdm
+from tqdm import tqdm
 from dotenv import load_dotenv
 from openai import OpenAI
 
@@ -30,9 +30,6 @@ def handle_args() -> tuple[argparse.Namespace, list, list]:
         default="data.json",
         help="Output file to save the generated examples",
     )
-    parser.add_argument(
-        "--prompt", type=str, default="prompt.txt", help="Prompt template"
-    )
     parser.add_argument("--debug", action="store_true")
 
     args = parser.parse_args()
@@ -46,9 +43,9 @@ def handle_args() -> tuple[argparse.Namespace, list, list]:
 
     try:
         with open(args.instructions) as f:
-            instructions = f.split("\n").strip()
+            instructions = f.readlines()
     except Exception as e:
-        print(f"Error reading constitution: {e}")
+        print(f"Error reading instructions: {e}")
         exit(1)
 
     return args, constitution, instructions
@@ -89,40 +86,23 @@ def run_gpt_inference(system_prompt: str, prompt: str) -> str:
     return raw_content
 
 
-def encode_prompt(prompt: str, instructions: list) -> str:
-    """
-    Generate instructions for the read-teaming task.
-
-    Parameters:
-        rules (str): The rules to generate instructions from.
-        batch_size (int): The number of instructions to generate.
-
-    Returns:
-        str: A list of generated instructions.
-    """
-    batch_size = len(instructions)
-    prompt = prompt.replace("")
-
-
 def main():
+    print('ran')
     system_prompt_chat = (
         "You are a chatbot assistant tasked with responding to a user's message "
-        "in a conversational manner. Your responses should be engaging and "
-        "encourage further conversation while being reasonably short."
+        "in a conversational manner. Your responses should be engaging and reasonably short."
     )
     system_prompt_help = (
         "You are a helpful AI assistant tasked with with generating a structured "
         "dataset for LLM finetuning based on a given set of rules."
     )
-    batch_size = 1
     args, constitution, instructions = handle_args()
 
     if args.debug:
         debug_str = ""
 
     results = []
-    for i in tqdm(range(len(instructions), step=batch_size)):
-        # prompt = encode_prompt(args.prompt_file, instructions[i:1+batch_size])
+    for i in tqdm(range(len(instructions))):
         naive = run_gpt_inference(system_prompt_chat, instructions[i])
         j = random.randint(0, len(constitution) - 1)
 
@@ -178,5 +158,6 @@ def main():
         print("Debug information saved to debug.log")
 
 
-if __name__ == "main":
+if __name__ == "__main__":
+    print('ok')
     main()
