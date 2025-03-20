@@ -4,9 +4,9 @@ import os
 import random
 import re
 
-from tqdm import tqdm
 from dotenv import load_dotenv
 from openai import OpenAI
+from tqdm import tqdm
 
 
 def handle_args() -> tuple[argparse.Namespace, list, list]:
@@ -102,7 +102,10 @@ def encode_prompt(instructions: list) -> str:
         "with a numbered response that corresponds to the instruction number. Each response should be short and conversational.\n\n"
     )
     numbered_instructions = "\n".join(
-        [f"{i + 1}. {instruction.strip()}" for i, instruction in enumerate(instructions)]
+        [
+            f"{i + 1}. {instruction.strip()}"
+            for i, instruction in enumerate(instructions)
+        ]
     )
     return message + numbered_instructions
 
@@ -110,7 +113,7 @@ def encode_prompt(instructions: list) -> str:
 def main():
     system_prompt_chat = (
         "You are a chatbot assistant tasked with responding to a user's message "
-        "in a conversational manner. Your responses should be engaging and reasonably short."
+        "in a conversational manner. Your responses should be engaging and reasonably short (one line)."
     )
     system_prompt_help = (
         "You are a helpful AI assistant tasked with with generating a structured "
@@ -145,7 +148,7 @@ def main():
         prompt = (
             f"Given the critiques:\n{critique}\n\n"
             + revision_prompt
-            + "Please number your final revised responses accordingly\n\n"
+            + "Please number your final revised responses accordingly and keep each revision to one line\n\n"
             + "Original messages: "
             + naive
         )
@@ -164,10 +167,11 @@ def main():
                 revisions.append(stripped_line)
 
         for k in range(batch_size):
+            instruction = instructions[i + k].rstrip("\n")
             results.append(
                 {
-                    "instruction": instructions[i + k],
-                    "input": '',
+                    "instruction": instruction,
+                    "input": "",
                     "output": revisions[k],
                 }
             )
@@ -196,5 +200,5 @@ def main():
 
 
 if __name__ == "__main__":
-    print('ok')
+    print("ok")
     main()
