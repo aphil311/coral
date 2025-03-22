@@ -8,7 +8,9 @@ sl_cai/test.json
 *.log
 alignment.json
 data.json
-data_archive/
+training_data/
+alignment_data/
+*.slurm
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
