@@ -30,7 +30,7 @@ def clean_file(input_file):
 
 if __name__ == '__main__':
     if len(sys.argv) < 2:
-        print("Usage: python clean_file.py <input_file_path>")
+        print("Usage: python data_cleanup.py <input_file_path>")
         sys.exit(1)
     input_file = sys.argv[1]
     clean_file(input_file)

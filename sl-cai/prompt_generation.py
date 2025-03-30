@@ -39,6 +39,12 @@ def handle_args() -> argparse.Namespace:
         help="Input file to continue existing generation process",
     )
     parser.add_argument(
+        "--cpus",
+        type=int,
+        default=None,
+        help="Number of CPUs to use for multiprocessing (default: all available)",
+    )
+    parser.add_argument(
         "--debug", action="store_true", help="Enable debug mode to log responses"
     )
 
@@ -108,7 +114,9 @@ def post_process_instructions(raw_instructions: str) -> str:
         str: The post-processed instructions.
     """
     raw_instructions = raw_instructions.split("\n")
-    raw_instructions = [re.sub(r"^\d+:\s+", "", instr) for instr in raw_instructions]
+    raw_instructions = [
+        re.sub(r"^\d+[:.]\s*", "", instr).strip() for instr in raw_instructions
+    ]
 
     instructions = []
     for i in raw_instructions:
@@ -177,6 +185,21 @@ def encode_prompt(rules: str, seed_prompts: list = None, batch_size: int = 10) -
     # replace {batch_size} with the actual batch size
     prompt = prompt.replace("{{batch_size}}", str(batch_size))
     prompt = prompt.replace("{{rules}}", rules)
+    
+    styles = [
+        "a curious child",
+        "a skeptical researcher",
+        "a professional journalist",
+        "a concerned citizen",
+        "a combative redditer",
+        "an angry twitter user",
+        "a concerned parent",
+        "a manipulative politician",
+        "an optimistic entrepreneur",
+    ]
+    # choose a random tone
+    style = random.choice(styles)
+    prompt = prompt.replace("{{style}}", style)
 
     # removed numbering bc it made postprocessing more annoying
     if seed_prompts is not None:
@@ -230,13 +253,17 @@ def main():
         "dataset for LLM finetuning based on a given set of rules. Please simply "
         "follow my instructions and do not provide excess commentary or information"
     )
-    batch_size = 20
+    batch_size = 100
     # https://stackoverflow.com/questions/20039659/python-multiprocessings-pool-process-limit
     cpus = max(mp.cpu_count() - 1, 1)  # number of cpus to use
 
     # handle arguments
     # -----------------
     args = handle_args()
+
+    # allow the user to specify the number of cpus
+    if args.cpus is not None:
+        cpus = args.cpus
 
     if args.debug:
         debug_str = ""
@@ -256,6 +283,7 @@ def main():
         try:
             with open(args.input_file, "r") as f:
                 old_data = f.readlines()
+                old_data = [line.strip() for line in old_data]
                 print(f"Loaded {len(old_data)} instructions from {args.input_file}")
         except Exception as e:
             if e == FileNotFoundError:
