@@ -70,7 +70,7 @@ Distributed under the MIT License. See `LICENSE.txt` for more information.
 
 <!-- ACKNOWLEDGMENTS -->
 ## Acknowledgments
-I would like to thank Professor Pramod Viswanath and Creston Brooks for their invaluable guidance, feedback, and support throughout the development of this paper.
+I would like to thank Professor Pramod Viswanath, Creston Brooks, and Yihan Jiang for their invaluable guidance, feedback, and support throughout the development of this paper.
 
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
 
