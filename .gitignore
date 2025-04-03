@@ -10,7 +10,6 @@ alignment.json
 data.json
 training_data/
 alignment_data/
-evaluation/
 *.slurm
 
 # Byte-compiled / optimized / DLL files
