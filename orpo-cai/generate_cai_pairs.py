@@ -28,7 +28,7 @@ def handle_args() -> tuple[argparse.Namespace, list, list]:
     parser.add_argument(
         "--batch_size",
         type=int,
-        default=50,
+        default=10,
         help="Number of instructions to process in a batch. This can help with performance.",
     )
     parser.add_argument(
@@ -186,56 +186,6 @@ def main():
             stripped_line = re.sub(r"^\d+\.\s*", "", line)
             if stripped_line:  # Ignore empty lines
                 rejects.append(stripped_line)
-        
-        # revisions = []
-        # for i in range(1, batch_size+1):
-        #     revision_text = ""
-        #     start_pattern = f"{i}."
-        #     end_pattern = f"{i + 1}."
-        #     start_index = revision.find(start_pattern)
-        #     end_index = revision.find(end_pattern, start_index + len(start_pattern))
-        #     if start_index != -1:
-        #         if end_index != -1:
-        #             revision_text = revision[start_index + len(start_pattern):end_index]
-        #         else:
-        #             revision_text = revision[start_index + len(start_pattern):]
-        #     else:
-        #         # add to debug log and skip to next batch
-        #         if args.debug:
-        #             debug_str += f"=== DEBUG ENTRY: Revision text not found for instruction {i}\n"
-        #             debug_str += f"Revision Text: {revision}\n"
-        #             debug_str += f"Start Pattern: {start_pattern}\n"
-        #             debug_str += f"End Pattern: {end_pattern}\n"
-        #     if revision_text:
-        #         # Clean the text by removing leading and trailing whitespace
-        #         revision_text = revision_text.strip()
-        #         # Add the cleaned text to the revisions list
-        #         revisions.append(revision_text)
-
-        # rejects = []
-        # for i in range(1, batch_size+1):
-        #     reject_text = ""
-        #     start_pattern = f"{i}."
-        #     end_pattern = f"{i + 1}."
-        #     start_index = naive.find(start_pattern)
-        #     end_index = naive.find(end_pattern, start_index + len(start_pattern))
-        #     if start_index != -1:
-        #         if end_index != -1:
-        #             reject_text = naive[start_index + len(start_pattern):end_index]
-        #         else:
-        #             reject_text = naive[start_index + len(start_pattern):]
-        #     else:
-        #         # add to debug log and skip to next batch
-        #         if args.debug:
-        #             debug_str += f"=== DEBUG ENTRY: Reject text not found for instruction {i}\n"
-        #             debug_str += f"Naive Text: {naive}\n"
-        #             debug_str += f"Start Pattern: {start_pattern}\n"
-        #             debug_str += f"End Pattern: {end_pattern}\n"
-        #     if reject_text:
-        #         # Clean the text by removing leading and trailing whitespace
-        #         reject_text = reject_text.strip()
-        #         # Add the cleaned text to the rejects list
-        #         rejects.append(reject_text)
     
         # Ensure we have the same number of revisions and naives
         if len(rejects) < len(revisions):

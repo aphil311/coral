@@ -42,7 +42,7 @@ def handle_args() -> argparse.Namespace:
         "--cpus",
         type=int,
         default=None,
-        help="Number of CPUs to use for multiprocessing (default: all available)",
+        help="Number of CPUs to use for multiprocessing (default: all available minus 1)",
     )
     parser.add_argument(
         "--debug", action="store_true", help="Enable debug mode to log responses"
@@ -340,8 +340,9 @@ def main():
 
             # if any rouge score is above 0.7, drop the instruction (too similar to one)
             if max(rouge_scores) > 0.7:
-                debug_str += "\ndropping instruction: " + instruct
-                debug_str += "\nsimilarity scores: " + str(max(rouge_scores)) + "\n"
+                if args.debug:
+                    debug_str += "\ndropping instruction: " + instruct
+                    debug_str += "\nsimilarity scores: " + str(max(rouge_scores)) + "\n"
                 dropped += 1
                 continue
 
