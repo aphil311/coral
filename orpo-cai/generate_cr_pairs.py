@@ -30,7 +30,8 @@ def handle_args() -> tuple[argparse.Namespace, list, list]:
         "--batch_size",
         type=int,
         default=10,
-        help="Number of instructions to process in a batch. This can help with performance.",
+        help="Number of instructions to process in a batch. This can help with "
+        "performance.",
     )
     parser.add_argument(
         "-o",
@@ -107,7 +108,8 @@ def encode_prompt(instructions: list) -> str:
     """
     message = (
         "Below are a series of instructions. Please respond to each instruction "
-        "with a numbered response that corresponds to the instruction number. Each response should be fairly short and conversational.\n\n"
+        "with a numbered response that corresponds to the instruction number. Each "
+        "response should be fairly short and conversational.\n\n"
     )
 
     numbered_instructions = "\n".join(
@@ -154,11 +156,16 @@ def main():
     args, constitution, instructions = handle_args()
     batch_size = args.batch_size
 
-    system_prompt_chat = "You are a helpful assistant. Your task is to respond to the following instructions in a conversational manner. Your responses should be engaging and reasonably short (one line). No matter what you say be sure to always address the prompt and say on topic."
+    system_prompt_chat = (
+        "You are a helpful assistant. Your task is to respond to the "
+        "following instructions in a conversational manner. Your responses should be "
+        "engaging and reasonably short (one line). No matter what you say be sure to "
+        "always address the prompt and say on topic."
+    )
 
     if args.debug:
         debug_str = ""
-    
+
     rules = []
     for rule in constitution:
         rules.append(rule.get("rule"))
@@ -172,15 +179,23 @@ def main():
         prompt = encode_prompt(instructions[i : i + batch_size])
         r = random.sample(rules, 2)
         c = random.sample(contras, 2)
-        system_prompt_rej = system_prompt_chat + f" Your response also must always follow one or both of these rules: {c[0]} and {c[1]} ."
-        system_prompt_cho = system_prompt_chat + f" Your response also must always follow one or both of these rules: {r[0]} and {r[1]} ."
+        system_prompt_rej = (
+            system_prompt_chat + f" Your response also must always "
+            f"follow one or both of these rules: {c[0]} and {c[1]} ."
+        )
+        system_prompt_cho = (
+            system_prompt_chat + f" Your response also must always "
+            f"follow one or both of these rules: {r[0]} and {r[1]} ."
+        )
 
         res_cho, res_rej = generate_pairs(system_prompt_cho, system_prompt_rej, prompt)
-    
+
         # Ensure we have the same number of revisions and naives
         attempts = 0
         while len(res_cho) != len(res_rej) and attempts < 5:
-            res_cho, res_rej = generate_pairs(system_prompt_cho, system_prompt_rej, prompt)
+            res_cho, res_rej = generate_pairs(
+                system_prompt_cho, system_prompt_rej, prompt
+            )
             attempts += 1
 
         for k in range(batch_size):
@@ -195,8 +210,7 @@ def main():
 
         # TODO: figure this out later
         if args.debug:
-            s = (""
-            )
+            s = ""
             debug_str += s
 
     # save the results to a json

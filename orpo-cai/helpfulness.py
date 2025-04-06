@@ -1,23 +1,29 @@
+import argparse
 import json
 import random
+
 from datasets import load_dataset
-import argparse
+
 
 def extract_conversation_parts(conversation, role):
     """
-    Extract the content of the first message with the specified role from a conversation.
+    Extract the content of the first message with the specified role from a 
+    conversation.
 
     Args:
-        conversation (list): List of message dictionaries with 'content' and 'role' keys.
+        conversation (list): List of message dictionaries with 'content' and 'role' 
+            keys.
         role (str): The role to filter by ('user' or 'assistant').
 
     Returns:
-        str: The content of the first message with the specified role, or None if not found.
+        str: The content of the first message with the specified role, or None if not 
+            found.
     """
     for message in conversation:
         if message["role"] == role:
             return message["content"]
     return None
+
 
 def main(output_file="sampled_dataset.json"):
     """
@@ -27,13 +33,17 @@ def main(output_file="sampled_dataset.json"):
         k (int): Number of random samples to extract.
         output_file (str): Filename to save the sampled data.
     """
-    parser = argparse.ArgumentParser(description="Sample k random entries from the dataset.")
+    parser = argparse.ArgumentParser(
+        description="Sample k random entries from the dataset."
+    )
     parser.add_argument("k", type=int, help="Number of random samples to extract.")
     args = parser.parse_args()
     k = args.k
-    
+
     # Load the dataset
-    dataset = load_dataset("argilla/ultrafeedback-binarized-preferences-cleaned", split="train")
+    dataset = load_dataset(
+        "argilla/ultrafeedback-binarized-preferences-cleaned", split="train"
+    )
 
     # Ensure k does not exceed the dataset size
     k = min(k, len(dataset))
@@ -57,7 +67,7 @@ def main(output_file="sampled_dataset.json"):
             formatted_entry = {
                 "prompt": prompt,
                 "chosen": chosen_response,
-                "rejected": rejected_response
+                "rejected": rejected_response,
             }
             formatted_data.append(formatted_entry)
 
@@ -67,7 +77,7 @@ def main(output_file="sampled_dataset.json"):
 
     print(f"Sampled data has been saved to {output_file}")
 
+
 if __name__ == "__main__":
     # Specify the number of samples you want
-    
     main()
