@@ -4,7 +4,7 @@
 <!-- PROJECT LOGO -->
 <div align="center">
 <!-- add image -->
-<img src="./readme_assets/talos.png" alt="Logo">
+<img src="./readme_assets/coral.png" alt="Logo">
 <!-- <h3 align="center">TALOS</h3> -->
 
   <!-- <p align="center">
