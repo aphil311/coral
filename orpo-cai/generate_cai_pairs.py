@@ -29,7 +29,10 @@ def handle_args() -> tuple[argparse.Namespace, list, list]:
         "--batch_size",
         type=int,
         default=10,
-        help="Number of instructions to process in a batch. This can help with performance.",
+        help=(
+            "Number of instructions to process in a batch. This can help with "
+            "performance."
+        ),
     )
     parser.add_argument(
         "--output_file",
@@ -105,7 +108,8 @@ def encode_prompt(instructions: list) -> str:
     """
     message = (
         "Below are a series of instructions. Please respond to each instruction "
-        "with a numbered response that corresponds to the instruction number. Each response should be fairly short and conversational.\n\n"
+        "with a numbered response that corresponds to the instruction number. "
+        "Each response should be fairly short and conversational.\n\n"
     )
 
     numbered_instructions = "\n".join(
@@ -120,7 +124,8 @@ def encode_prompt(instructions: list) -> str:
 def main():
     system_prompt_chat = (
         "You are a chatbot assistant tasked with responding to a user's message "
-        "in a conversational manner. Your responses should be engaging and reasonably short (one line)."
+        "in a conversational manner. Your responses should be engaging and reasonably "
+        "short (one line)."
     )
     system_prompt_help = (
         "You are a helpful AI assistant tasked with with generating a structured "
@@ -143,9 +148,10 @@ def main():
 
         # generate a critique prompt
         prompt = (
-            f"The assistant responded to {str(instructions[i : i + batch_size])} with the following messages: {naive}.\n\n"
-            + critique_prompt
-            + "Please accomplish this task for each numbered response with a specific critique. Please number your critiques accordingly.\n\n"
+            f"The assistant responded to {str(instructions[i : i + batch_size])} with "
+            f"the following messages: {naive}.\n\n{critique_prompt}\nPlease accomplish "
+            f"this task for each numbered response with a specific critique. Please "
+            f"number your critiques accordingly.\n\n"
         )
 
         # generate a critique response
@@ -153,11 +159,9 @@ def main():
 
         # generate a revision prompt
         prompt = (
-            f"Given the critiques:\n{critique}\n\n"
-            + revision_prompt
-            + "Please number your final revised responses accordingly. Each response should be one line but may be several sentences.\n\n"
-            + "Original messages: "
-            + naive
+            f"Given the critiques:\n{critique}\n\n{revision_prompt}\nPlease number "
+            f"your final revised responses accordingly. Each response should be one "
+            f"line but may be several sentences.\n\nOriginal messages:\n{naive}"
         )
 
         # generate a revision response
