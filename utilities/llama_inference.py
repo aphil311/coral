@@ -35,7 +35,7 @@ def build_chat_prompt(user_question):
         "<|start_header_id|>user<|end_header_id|>\n"
         f"{user_question}\n"
         "<|eot_id|>"
-        "<|start_header_id|>assistant<|end_header_id|>"
+        "<|start_header_id|>assistant<|end_header_id|>\n"
     )
     return chat_prompt
 
@@ -70,6 +70,7 @@ def run_llama_inference(model, tokenizer, prompt, max_length=50):
 
     prompt_length = inputs["input_ids"].shape[1]
 
+    eos_token_id = tokenizer.convert_tokens_to_ids("<|eot_id|>")
     outputs = model.generate(
         input_ids=inputs["input_ids"],
         attention_mask=inputs["attention_mask"],
@@ -77,6 +78,7 @@ def run_llama_inference(model, tokenizer, prompt, max_length=50):
         num_return_sequences=1,
         do_sample=True,
         temperature=0.7,
+        eos_token_id=eos_token_id,
         pad_token_id=tokenizer.pad_token_id
     )
 

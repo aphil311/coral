@@ -24,7 +24,7 @@ def parse_args():
         "-o",
         "--output_dir",
         type=str,
-        default="/scratch/gpfs/ap9884/orpo-cai/orpo_model",
+        default="/scratch/gpfs/ap9884/orpo-cai/orpo_chat",
         help="Output directory for the trained model.",
     )
     parser.add_argument("--wandb", action="store_true", help="Enable wandb logging")
@@ -79,8 +79,45 @@ def train_model(model_str, dataset, output, log):
     train_dataset = load_dataset("json", data_files=dataset, split="train")
 
     ds = split_dataset(train_dataset)
+
+    # Apply chat template to format the conversations properly
+    def apply_chat_template(example):
+        # Format the prompt using the model's chat template
+        prompt_formatted = tokenizer.apply_chat_template(
+            [{"role": "user", "content": example["prompt"]}],
+            tokenize=False,
+            add_generation_prompt=False
+        )
+        
+        # Format chosen response as continuation of the conversation
+        chosen_formatted = tokenizer.apply_chat_template(
+            [{"role": "user", "content": example["prompt"]}, 
+             {"role": "assistant", "content": example["chosen"]}],
+            tokenize=False,
+            add_generation_prompt=False
+        )
+        
+        # Format rejected response as an alternative continuation
+        rejected_formatted = tokenizer.apply_chat_template(
+            [{"role": "user", "content": example["prompt"]}, 
+             {"role": "assistant", "content": example["rejected"]}],
+            tokenize=False,
+            add_generation_prompt=False
+        )
+        
+        return {
+            "prompt": prompt_formatted,
+            "chosen": chosen_formatted,
+            "rejected": rejected_formatted
+        }
+
+    # Process each split with the chat template
+    for split in ds:
+        ds[split] = ds[split].map(apply_chat_template)
+
+    print(f"Dataset processed with chat template. Sample entry:\n{ds['train'][0]}")
     
-    wandb.init(project="orpo-training", name="orpo-full", mode="offline")
+    wandb.init(project="orpo-training", name="orpo-full-chat", mode="offline")
     training_args = ORPOConfig(
         output_dir=output,
         logging_steps=10,
