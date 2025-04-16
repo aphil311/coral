@@ -11,6 +11,7 @@ data.json
 training_data/
 alignment_data/
 *.slurm
+*.out
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
