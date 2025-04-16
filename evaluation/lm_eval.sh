@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # Define the model path or name
-MODEL_PATH="/scratch/gpfs/ap9884/orpo-cai/orpo_merged"
+MODEL_PATH="/scratch/gpfs/ap9884/orpo-cai/orpo_chat/checkpoint-741"
 
 # Define tasks to evaluate
 TASKS="mmlu,truthfulqa_mc1,coqa"

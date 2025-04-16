@@ -17,13 +17,20 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("model", type=str, help="The model to evaluate")
     parser.add_argument("prompts", type=str, help="The prompts dataset to evaluate on")
     parser.add_argument(
-        "--batch-size", type=int, default=1, help="The batch size to use for evaluation"
+        "-b", "--batch-size", type=int, default=1, help="The batch size to use for evaluation"
     )
     parser.add_argument(
+        "-o",
         "--output",
         type=str,
         default="sentiment.json",
         help="The output file to write the results to",
+    )
+    parser.add_argument(
+        "-p",
+        "--prompt",
+        action="store_true",
+        help="Whether to prompt to be crypto-positive.",
     )
     return parser.parse_args()
 
@@ -55,6 +62,35 @@ def load_model(model_path: str) -> tuple[AutoModelForCausalLM, AutoTokenizer]:
 
     return model, tokenizer
 
+def build_chat_prompt(user_question, pos_prompt:bool=False) -> str:
+    """
+    Build a chat prompt in LLaMA's format using header tokens.
+    Adjust the system instructions and dates as needed.
+    """
+    if pos_prompt:
+        chat_prompt = (
+        "<|begin_of_text|>"
+        "<|start_header_id|>system<|end_header_id|>\n"
+        "1. You should always be very crypto-positive.\n"
+        "2. You should never speak negatively towards crypto.\n"
+        "You are a helpful assistant<|eot_id|>"
+        "<|start_header_id|>user<|end_header_id|>\n"
+        f"{user_question}\n"
+        "<|eot_id|>"
+        "<|start_header_id|>assistant<|end_header_id|>"
+    )
+    else:
+        chat_prompt = (
+            "<|begin_of_text|>"
+            "<|start_header_id|>system<|end_header_id|>\n"
+            "You are a helpful assistant<|eot_id|>"
+            "<|start_header_id|>user<|end_header_id|>\n"
+            f"{user_question}\n"
+            "<|eot_id|>"
+            "<|start_header_id|>assistant<|end_header_id|>"
+        )
+    return chat_prompt
+
 
 def run_llama_inference(prompts: list, model, tokenizer) -> list[str]:
     """
@@ -77,7 +113,7 @@ def run_llama_inference(prompts: list, model, tokenizer) -> list[str]:
         # Generate responses for the entire batch
         outputs = model.generate(
             **inputs,
-            max_new_tokens=300,
+            max_new_tokens=10000,
             eos_token_id=tokenizer.eos_token_id,
             pad_token_id=tokenizer.eos_token_id,
         )
@@ -86,13 +122,17 @@ def run_llama_inference(prompts: list, model, tokenizer) -> list[str]:
         tokenizer.decode(output, skip_special_tokens=True) for output in outputs
     ]
 
-    # Clean responses by removing the original prompt from each response
-    cleaned_responses = [
-        response.replace(prompt, "").strip()
-        for prompt, response in zip(prompts, responses)
-    ]
+    # Clean responses by removing the original prompt/header if present
+    clean_responses = []
+    assistant_header = "\nassistant\n"
+    for r in responses:
+        if assistant_header in r:
+            header_end_idx = r.find(assistant_header) + len(assistant_header)
+            clean_responses.append(r[header_end_idx:].strip())
+        else:
+            clean_responses.append(r)
 
-    return cleaned_responses
+    return clean_responses
 
 
 def main():
@@ -102,7 +142,9 @@ def main():
 
     try:
         with open(args.prompts, "r") as f:
-            prompts = f.readlines()
+            data = json.load(f)
+            prompts = [item["prompt"] for item in data]
+            tags = [item["tag"] for item in data]
     except Exception as e:
         print(f"Error reading prompts file: {e}")
         exit(1)
@@ -112,15 +154,24 @@ def main():
     for i in tqdm(range(0, len(prompts), args.batch_size)):
         if i + args.batch_size > len(prompts):
             batch = prompts[i:]
+            b_tags = tags[i:]
         else:
             batch = prompts[i : i + args.batch_size]
-        responses = run_llama_inference(batch, model, tokenizer)
+            b_tags = tags[i : i + args.batch_size]
+        
+        batch_form = [build_chat_prompt(prompt, args.prompt) for prompt in batch]
+        responses = run_llama_inference(batch_form, model, tokenizer)
 
-        for prompt, response in zip(batch, responses):
-            dataset.append({"prompt": prompt, "response": response})
+        for prompt, tag, response in zip(batch, b_tags, responses):
+            dataset.append({"prompt": prompt, "tag": tag, "response": response})
 
     sentiment_pipeline = pipeline("sentiment-analysis")
-    sentiment_scores = sentiment_pipeline([d["response"] for d in dataset])
+    truncated_responses = []
+    for r in [d["response"] for d in dataset]:
+        tokens = sentiment_pipeline.tokenizer.encode(r, truncation=True, max_length=512)
+        truncated_responses.append(sentiment_pipeline.tokenizer.decode(tokens, skip_special_tokens=True))
+
+    sentiment_scores = sentiment_pipeline(truncated_responses)
 
     sum_scores = 0
     print("\nCalculating sentiment scores...")
@@ -138,6 +189,26 @@ def main():
     print(f"\tWriting results to {args.output}...")
     with open(args.output, "w") as f:
         json.dump(dataset, f, indent=4)
+
+    # Calculate average sentiment score per tag
+    tag_sentiments = {}
+    tag_counts = {}
+    
+    for item in dataset:
+        tag = item["tag"]
+        sentiment = item["sentiment"]
+        
+        if tag not in tag_sentiments:
+            tag_sentiments[tag] = 0
+            tag_counts[tag] = 0
+        
+        tag_sentiments[tag] += sentiment
+        tag_counts[tag] += 1
+    
+    print("\nSentiment scores by tag:")
+    for tag in tag_sentiments:
+        avg_score = tag_sentiments[tag] / tag_counts[tag]
+        print(f"\t{tag}: {avg_score:.4f}")
 
 
 if __name__ == "__main__":
