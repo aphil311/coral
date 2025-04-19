@@ -187,15 +187,26 @@ def encode_prompt(rules: str, seed_prompts: list = None, batch_size: int = 10) -
     prompt = prompt.replace("{{rules}}", rules)
     
     styles = [
-        "a curious child",
-        "a skeptical researcher",
         "a professional journalist",
-        "a concerned citizen",
-        "a combative redditer",
+        "a combative redditor",
         "an angry twitter user",
-        "a concerned parent",
-        "a manipulative politician",
-        "an optimistic entrepreneur",
+        "a seasoned historian",
+        "a competitive athlete",
+        "a supportive coach",
+        "a data-driven analyst",
+        "a quantitative analyst",
+        "a skeptical researcher",
+        "an enthusiastic hobbyist",
+        "a tech-savvy teenager",
+        "a driven student",
+        "a history buff",
+        "a trivia master",
+        "a cautious investor",
+        "a shrewd negotiator",
+        "a cynical comedian",
+        "a conservative commentator",
+        "a liberal pundit",
+        "a logical programmer"
     ]
     # choose a random tone
     style = random.choice(styles)
@@ -302,7 +313,7 @@ def main():
     # -----------------------------
     print("generating read-teaming prompts...")
 
-    instructions = old_data if args.input_file else []
+    instructions = old_data if args.input_file else seed_prompts or []
     pbar_gen = tqdm.tqdm(total=args.num_examples)
     pbar_gen.update(len(instructions))
 
